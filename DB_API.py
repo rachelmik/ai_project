@@ -20,29 +20,29 @@ def get_data(min_year, max_year):
     return db
 
 
-def get_people(person_type):
-    people = []
-    bad_files = []
-    json_list = os.listdir('./DB/{}'.format(person_type))
-    count = 0
-    for json_file in json_list:
-        try:
-            if count % 100 == 0:
-                print(count)
-            count += 1
-            with open('./DB/{}/{}'.format(person_type,json_file)) as f:
-                person = json.load(f)
-            person = enrich_person(person)
-            people.append(person)
-            with open('./DB/{}/{}'.format(person_type, json_file), "w") as f:
-                json.dump(person, f)
-        except Exception as e:
-            print(e)
-            print(json_file)
-            bad_files.append(json_file)
-            continue
-    print(bad_files)
-    return people
+# def get_people(person_type):
+#     people = []
+#     bad_files = []
+#     json_list = os.listdir('./DB/{}'.format(person_type))
+#     count = 0
+#     for json_file in json_list:
+#         try:
+#             if count % 100 == 0:
+#                 print(count)
+#             count += 1
+#             with open('./DB/{}/{}'.format(person_type,json_file)) as f:
+#                 person = json.load(f)
+#             person = enrich_person(person)
+#             people.append(person)
+#             with open('./DB/{}/{}'.format(person_type, json_file), "w") as f:
+#                 json.dump(person, f)
+#         except Exception as e:
+#             print(e)
+#             print(json_file)
+#             bad_files.append(json_file)
+#             continue
+#     print(bad_files)
+#     return people
 
 
 def check_len(data, func, size):
@@ -62,11 +62,12 @@ def enrich_person(person, max_year):
     gross = []
     complex_gross = []
     for m in movies:
-        if m.get("details").get("Gross USA") is not None:
+        gross_usa = m.get("details").get("Gross USA")
+        if gross_usa is not None and isinstance(gross_usa, int):
             movie_gross = m.get("details").get("Gross USA")
         else:
             movie_gross = m.get("details").get("Cumulative Worldwide Gross")
-        if movie_gross is not None:
+        if movie_gross is not None and isinstance(gross_usa, int):
             movie_gross = movie_gross / 1e6
             gross.append(movie_gross)
             complex_gross.append(movie_gross / m.get("place"))
@@ -237,19 +238,4 @@ def get_linear_predict(db, linear):
 # print(m)
 # print(len(m))
 # print(get_linear_predict(db, linear))
-
-# get_people("actor2")
-# p_list = ['10605_Abhijat Joshi']
-# for p in p_list:
-#     with open("DB/writer/" + p) as j:
-#         person = json.load(j)
-#         # try:
-#         person = enrich_person(person, 2014)
-#         print(person)
-#         # except Exception as e:
-#         #     print(e)
-#         #     continue
-#     with open("DB/writer/" + p, "w") as j:
-#         json.dump(person, j)
-
 
