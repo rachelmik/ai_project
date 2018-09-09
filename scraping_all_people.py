@@ -52,26 +52,18 @@ def scrap_some_people(start_idx, links_range, person_type, existing):
 
 
 if __name__ == '__main__':
-    # with open("DB/peoples_links.json", "r") as f:
-    #     links = json.load(f)
-    # k = "producer"
-    # links = ["_".join(link.split("_")[:-1]) + "_t1" for link in links[k]]
-    # set_links = list(set(links))
-    # existing = glob.glob("DB/{}/*".format(k))
-    # existing = [int(i.split("\\")[-1].split("_")[0]) for i in existing]
-    # print(len(set_links))
-
-    with open("../scraping/DB/missing_links") as f:
-        all_links = json.load(f)
-    k = "actor"
-    set_links = all_links[k]
-    print(len(set_links))
-    existing = glob.glob("../scraping/DB/{}/*".format(k))
+    with open("DB/peoples_links.json", "r") as f:
+        links = json.load(f)
+    k = "producer"
+    links = ["_".join(link.split("_")[:-1]) + "_t1" for link in links[k]]
+    set_links = list(set(links))
+    existing = glob.glob("DB/{}/*".format(k))
     existing = [int(i.split("\\")[-1].split("_")[0]) for i in existing]
+    print(len(set_links))
 
     jump = 100
     for i in range(1, len(set_links), jump):
-        p = Process(target=scrap_some_people, args=(i + 165229, set_links[i:i+jump], k, existing))
+        p = Process(target=scrap_some_people, args=(i, set_links[i:i+jump], k, existing))
         p.start()
 
 
