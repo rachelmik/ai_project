@@ -12,9 +12,9 @@ def get_data(min_year, max_year):
     db = []
     for year in range(min_year, max_year):
         print(year)
-        json_list = os.listdir('./DB/' + str(year))
+        json_list = os.listdir('../scraping/DB/' + str(year))
         for json_file in json_list:
-            with open('./DB/' + str(year)+'/'+json_file) as f:
+            with open('../scraping/DB/' + str(year)+'/'+json_file) as f:
                 movie = json.load(f)
                 db.append(movie)
     return db
@@ -179,14 +179,14 @@ def create_bars(db, param):
     create_hist(hist, False)
 
 
-def get_all_params(db):
+def get_all_params(db, genres):
     release_date = get_list_of_details_feature(db, "Release Date")
     dates = parse_dates(release_date)
     cast = get_list_of_feature(db, "cast")
     cast = [len(i) for i in cast]
     runtime = get_list_of_details_feature(db, "Runtime")
     usa_gross = get_gross(db)
-    genres = get_genre_dict(db)
+    # genres = get_genre_dict(db)
     genres = {k: sum(v) / len(v) for k, v in genres.items() if len(v) > 0}
     movie_genres = get_list_of_feature(db, "genres")
     avg_movies_gross_by_genre = []
@@ -202,15 +202,15 @@ def get_all_params(db):
     return usa_gross, list(zip(cast, avg_movies_gross_by_genre, max_movies_gross_by_genre))
 
 
-def get_linear_fit(db):
-    usa_gross, X = get_all_params(db)
+def get_linear_fit(db, genres):
+    usa_gross, X = get_all_params(db, genres)
     linear = LinearRegression()
     X, usa_gross = remove_nones(X, usa_gross)
     return linear.fit(X=X, y=usa_gross)
 
 
-def get_linear_predict(db, linear):
-    usa_gross, X = get_all_params(db)
+def get_linear_predict(db, linear, genres):
+    usa_gross, X = get_all_params(db, genres)
     X, usa_gross = remove_nones(X, usa_gross)
     predicts = linear.predict(X)
     return mean_squared_error(predicts, usa_gross)
@@ -231,11 +231,12 @@ def get_linear_predict(db, linear):
 # print(genres)
 # create_hist(genres, False)
 
-# db = get_data(2007, 2015)
-# linear = get_linear_fit(db)
-# db = get_data(2015, 2017)
+db = get_data(2007, 2015)
+genres = get_genre_dict(db)
+linear = get_linear_fit(db, genres)
+db = get_data(2015, 2017)
 # m = [movie["base_url"] for movie in db if movie.get("genres") is None]
 # print(m)
 # print(len(m))
-# print(get_linear_predict(db, linear))
+print(get_linear_predict(db, linear, genres))
 
