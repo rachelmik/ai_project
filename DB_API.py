@@ -7,52 +7,25 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 
+path_to_data = "C:/My/AI_project_data/"
+
 
 def get_data(min_year, max_year):
     db = []
     for year in range(min_year, max_year):
         print(year)
-        json_list = os.listdir('../scraping/DB/' + str(year))
+        json_list = os.listdir(path_to_data + str(year))
         for json_file in json_list:
-            with open('../scraping/DB/' + str(year)+'/'+json_file) as f:
+            with open(path_to_data + str(year)+'/'+json_file) as f:
                 movie = json.load(f)
                 db.append(movie)
     return db
 
 
-# def get_people(person_type):
-#     people = []
-#     bad_files = []
-#     json_list = os.listdir('./DB/{}'.format(person_type))
-#     count = 0
-#     for json_file in json_list:
-#         try:
-#             if count % 100 == 0:
-#                 print(count)
-#             count += 1
-#             with open('./DB/{}/{}'.format(person_type,json_file)) as f:
-#                 person = json.load(f)
-#             person = enrich_person(person)
-#             people.append(person)
-#             with open('./DB/{}/{}'.format(person_type, json_file), "w") as f:
-#                 json.dump(person, f)
-#         except Exception as e:
-#             print(e)
-#             print(json_file)
-#             bad_files.append(json_file)
-#             continue
-#     print(bad_files)
-#     return people
-
-
-def check_len(data, func, size):
-    if len(data) > size:
+def check_len(data, func):
+    if len(data) > 0:
         return func(data)
     return 0
-
-
-def average(data):
-    return check_len(data, lambda x: sum(x) / len(x), 0)
 
 
 def enrich_person(person, max_year):
@@ -75,14 +48,64 @@ def enrich_person(person, max_year):
     gross = gross[:5]
     complex_gross = complex_gross[:5]
     num_of_movies = len(gross)
-    person["average_gross"] = sum(gross) / num_of_movies if num_of_movies != 0 else 0
+    person["average_gross"] = check_len(gross, np.mean)
     person["max_gross"] = max(gross) if num_of_movies != 0 else 0
+    person["std_gross"] = check_len(gross, np.std)
     if num_of_movies > 1:
         gradient = list(np.gradient(gross))
         person["gradient"] = gradient
-        person["avg_gradient"] = sum(gradient) / len(gradient)
-    person["average_complex_gross"] = sum(complex_gross) / num_of_movies  if num_of_movies != 0 else 0
+        person["avg_gradient"] = check_len(gradient, np.mean)
+    person["average_complex_gross"] = check_len(complex_gross, np.mean)
     return person
+
+
+def get_file_name(person, files_dict):
+    url = person["url"]
+    options = ["/".join(url.split("/")[:-1]) + "/?ref_=ttfc_fc_t1", "_".join(url.split("_")[:-1]) + "_t1",
+               "/".join(url.split("/")[:-1]) + "/?ref_=ttfc_fc_cl_t1"]
+    for o in options:
+        try:
+            f = files_dict[o]
+            return f
+        except KeyError:
+            continue
+    return None
+
+
+def get_movie_person_data(movie):
+    with open(path_to_data + "people_links_dict.json") as f:
+        files_dict = json.load(f)
+
+    stuff_files = {}
+    for person_type in ["producer", "director", "writer"]:
+        if len(movie[person_type + "s"]) > 0:
+            stuff_files[person_type] = get_file_name(movie[person_type + "s"][0], files_dict[person_type])
+    cast_files = [get_file_name(i, files_dict["actor"]) for i in movie["cast"]]
+    year = movie["year"]
+
+    stuff = {}
+    for p_type, file_name in stuff_files.items():
+        with open("{}{}/{}".format(path_to_data, p_type, file_name)) as f:
+            person = json.load(f)
+            stuff[p_type] = enrich_person(person, year)
+
+    cast = []
+    for actor_file_name in cast_files:
+        if actor_file_name is None:
+            continue
+        with open("{}actor/{}".format(path_to_data, actor_file_name)) as f:
+            person = json.load(f)
+            cast.append(enrich_person(person, year))
+
+    actresses = [i for i in cast if i["type"] == "actress"]
+    movie["actress_ratio"] = len(actresses) / len(cast) if len(cast) != 0 else 0
+    ages = [i["age"] for i in cast if i["age"] != 0]
+    movie["average_age"] = check_len(ages, np.mean)
+    for k, v in stuff.items():
+        movie["{}_enriched".format(k)] = v
+    movie["cast_enriched"] = cast
+
+    return movie
 
 
 def get_list_of_details_feature(db, feature):
@@ -231,12 +254,21 @@ def get_linear_predict(db, linear, genres):
 # print(genres)
 # create_hist(genres, False)
 
-db = get_data(2007, 2015)
-genres = get_genre_dict(db)
-linear = get_linear_fit(db, genres)
-db = get_data(2015, 2017)
-# m = [movie["base_url"] for movie in db if movie.get("genres") is None]
-# print(m)
-# print(len(m))
-print(get_linear_predict(db, linear, genres))
+# db = get_data(2007, 2015)
+# genres = get_genre_dict(db)
+# linear = get_linear_fit(db, genres)
+# db = get_data(2015, 2017)
+# print(get_linear_predict(db, linear, genres))
+
+year = "2016"
+files = os.listdir(path_to_data + year)
+for i in files[470:]:
+    print(i)
+    file_path = path_to_data + year + "/" + i
+    with open(file_path) as f:
+        movie = json.load(f)
+    movie = get_movie_person_data(movie)
+    with open(file_path, "w") as f:
+        json.dump(movie, f)
+
 
