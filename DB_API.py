@@ -1,6 +1,5 @@
 import json
 import os
-from datetime import datetime
 import time
 from matplotlib import pyplot as plt
 import numpy as np
@@ -28,6 +27,7 @@ def check_len(data, func):
     return 0
 
 
+# getting personal data from perople files to movie files
 def enrich_person(person, max_year):
     movies = person["movies"]
     movies = [m for m in movies if m.get("year") < max_year]
@@ -108,6 +108,7 @@ def get_movie_person_data(movie):
     return movie
 
 
+# getting features from movie files
 def get_list_of_details_feature(db, feature):
     return [movie.get('details').get(feature) for movie in db]
 
@@ -168,6 +169,71 @@ def get_genre_dict(db):
     return genre_dict
 
 
+def get_genre(db, genre_dict):
+    genres = {k: np.mean(v) for k, v in genre_dict.items() if len(v) > 0}
+    movie_genres = get_list_of_feature(db, "genres")
+    avg_movies_gross_by_genre = []
+    max_movies_gross_by_genre = []
+    for movie in movie_genres:
+        genre_gross = [genres[i] for i in movie if i in genres.keys()]
+        if len(genre_gross) == 0:
+            avg_movies_gross_by_genre.append(0)
+            max_movies_gross_by_genre.append(0)
+        else:
+            avg_movies_gross_by_genre.append(sum(genre_gross) / len(genre_gross))
+            max_movies_gross_by_genre.append(max(genre_gross))
+
+    return avg_movies_gross_by_genre, max_movies_gross_by_genre
+
+
+def append_none(data, func):
+    result = []
+    for i in data:
+        try:
+            result.append(func(i))
+        except Exception:
+            result.append(None)
+
+    return result
+
+
+def get_person_params(person_list):
+    features = ["average_gross", "max_gross", "std_gross", "avg_gradient", "average_complex_gross"]
+    params = []
+    for feature in features:
+        # person_features = []
+        # for person in person_list:
+        #     if person is None:
+        #         person_features.append(None)
+        #     else:
+        #         person_features.append(person.get(feature))
+        person_features = append_none(person_list, lambda person: person.get(feature))
+        params.append(person_features)
+    return params
+
+
+def get_all_params(db, genres):
+    release_date = get_list_of_details_feature(db, "Release Date")
+    dates = parse_dates(release_date)
+    cast = get_list_of_feature(db, "cast")
+    cast_num = [len(i) for i in cast]
+    runtime = get_list_of_details_feature(db, "Runtime")
+    usa_gross = get_gross(db)
+    avg_movies_gross_by_genre, max_movies_gross_by_genre = get_genre(db, genres)
+    avg_cast_age = get_list_of_feature(db, "average_age")
+    women_ratio = get_list_of_feature(db, "actress_ratio")
+    params = [cast_num, avg_movies_gross_by_genre, max_movies_gross_by_genre, women_ratio, avg_cast_age]
+    params += get_person_params(get_list_of_feature(db, "producer_enriched"))
+    params += get_person_params(get_list_of_feature(db, "director_enriched"))
+    params += get_person_params(get_list_of_feature(db, "writer_enriched"))
+    movies_cast = get_list_of_feature(db, "cast_enriched")
+    for i in range(15):
+        actor_by_index = append_none(movies_cast, lambda actor: actor[i])
+        params += get_person_params(actor_by_index)
+    return usa_gross, list(zip(*params))
+
+
+# creating histograms
 def create_hist(values_dic, is_big):
     hist = {k: sum(v) / len(v) for k, v in values_dic.items() if len(v) > 0}
     hist = sorted(hist.items(), key=lambda x: x[0])
@@ -202,29 +268,7 @@ def create_bars(db, param):
     create_hist(hist, False)
 
 
-def get_all_params(db, genres):
-    release_date = get_list_of_details_feature(db, "Release Date")
-    dates = parse_dates(release_date)
-    cast = get_list_of_feature(db, "cast")
-    cast = [len(i) for i in cast]
-    runtime = get_list_of_details_feature(db, "Runtime")
-    usa_gross = get_gross(db)
-    # genres = get_genre_dict(db)
-    genres = {k: sum(v) / len(v) for k, v in genres.items() if len(v) > 0}
-    movie_genres = get_list_of_feature(db, "genres")
-    avg_movies_gross_by_genre = []
-    max_movies_gross_by_genre = []
-    for movie in movie_genres:
-        genre_gross = [genres[i] for i in movie if i in genres.keys()]
-        if len(genre_gross) == 0:
-            avg_movies_gross_by_genre.append(0)
-            max_movies_gross_by_genre.append(0)
-        else:
-            avg_movies_gross_by_genre.append(sum(genre_gross) / len(genre_gross))
-            max_movies_gross_by_genre.append(max(genre_gross))
-    return usa_gross, list(zip(cast, avg_movies_gross_by_genre, max_movies_gross_by_genre))
-
-
+# linear learning
 def get_linear_fit(db, genres):
     usa_gross, X = get_all_params(db, genres)
     linear = LinearRegression()
@@ -238,37 +282,35 @@ def get_linear_predict(db, linear, genres):
     predicts = linear.predict(X)
     return mean_squared_error(predicts, usa_gross)
 
-# db = get_data(2007, 2017)
-# release_date = get_list_of_details_feature(db, "Release Date")
-# dates = parse_dates(release_date)
-# cast = get_list_of_feature(db, "cast")
-# cast = [len(i) for i in cast]
-# year = get_list_of_feature(db, "year")
-# runtime = get_list_of_details_feature(db, "Runtime")
-# usa_gross = get_gross(db)
+
+def create_all_histograms():
+    db = get_data(2007, 2017)
+    release_date = get_list_of_details_feature(db, "Release Date")
+    dates = parse_dates(release_date)
+    cast = get_list_of_feature(db, "cast")
+    cast = [len(i) for i in cast]
+    year = get_list_of_feature(db, "year")
+    runtime = get_list_of_details_feature(db, "Runtime")
+
+    create_bars(db, year)
+    create_range_hist(db, dates)
+    create_range_hist(db, cast)
+    create_range_hist(db, runtime)
+    genres = get_genre_dict(db)
+    create_hist(genres, False)
 
 
-# create_bars(db, year)
-# create_range_hist(db, dates)
-# genres = get_genre_dict(db)
-# print(genres)
-# create_hist(genres, False)
+def learn():
+    # with open(path_to_data + "db_learn.json") as f:
+    #     db = json.load(f)
+    db = get_data(2007, 2015)
+    genres = get_genre_dict(db)
+    linear = get_linear_fit(db, genres)
+    # with open(path_to_data + "db_test.json") as f:
+    #     db = json.load(f)
+    db = get_data(2015, 2017)
+    print(get_linear_predict(db, linear, genres))
 
-# db = get_data(2007, 2015)
-# genres = get_genre_dict(db)
-# linear = get_linear_fit(db, genres)
-# db = get_data(2015, 2017)
-# print(get_linear_predict(db, linear, genres))
 
-year = "2016"
-files = os.listdir(path_to_data + year)
-for i in files[470:]:
-    print(i)
-    file_path = path_to_data + year + "/" + i
-    with open(file_path) as f:
-        movie = json.load(f)
-    movie = get_movie_person_data(movie)
-    with open(file_path, "w") as f:
-        json.dump(movie, f)
 
 
