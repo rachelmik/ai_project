@@ -54,7 +54,7 @@ def get_person_gross(person, max_year):
 
 # getting personal data from perople files to movie files
 def enrich_person(person, max_year):
-    gross, complex_gross, places = get_person_gross(person, max_year)
+    gross, complex_gross, places, years = get_person_gross(person, max_year)
     gross = gross[:5]
     complex_gross = complex_gross[:5]
     num_of_movies = len(gross)
