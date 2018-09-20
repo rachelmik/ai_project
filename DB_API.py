@@ -15,6 +15,12 @@ all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Hor
 path_to_data = get_data_path()
 
 
+def read_json_file(year, json_file):
+    with open(path_to_data + str(year) + '/' + json_file) as f:
+        movie = json.load(f)
+    return movie
+
+
 def get_data(min_year, max_year):
     db = []
     for year in range(min_year, max_year):
@@ -27,7 +33,7 @@ def get_data(min_year, max_year):
                 for g in movie['genres']:
                     index = all_genres_list.index(g)
                     genres[index] = 1
-                movie['genres'] = genres
+                movie['genres_array'] = genres
                 db.append(movie)
     return db
 
@@ -203,21 +209,29 @@ def get_genre_dict(db):
     return genre_dict
 
 
-def get_genre(db, genre_dict):
+def get_genre(movie, genre_dict):
     genres = {k: np.mean(v) for k, v in genre_dict.items() if len(v) > 0}
-    movie_genres = get_list_of_feature(db, "genres")
-    avg_movies_gross_by_genre = []
-    max_movies_gross_by_genre = []
-    for movie in movie_genres:
-        genre_gross = [genres[i] for i in movie if i in genres.keys()]
-        if len(genre_gross) == 0:
-            avg_movies_gross_by_genre.append(0)
-            max_movies_gross_by_genre.append(0)
-        else:
-            avg_movies_gross_by_genre.append(sum(genre_gross) / len(genre_gross))
-            max_movies_gross_by_genre.append(max(genre_gross))
-
+    movie_genres = movie.get("genres")
+    genre_gross = [genres[i] for i in movie_genres if i in genres.keys()]
+    avg_movies_gross_by_genre = 0
+    max_movies_gross_by_genre = 0
+    if len(genre_gross) != 0:
+        avg_movies_gross_by_genre = np.mean(genre_gross)
+        max_movies_gross_by_genre = max(genre_gross)
     return avg_movies_gross_by_genre, max_movies_gross_by_genre
+    # movie_genres = get_list_of_feature(db, "genres")
+    # avg_movies_gross_by_genre = []
+    # max_movies_gross_by_genre = []
+    # for movie in movie_genres:
+    #     genre_gross = [genres[i] for i in movie if i in genres.keys()]
+    #     if len(genre_gross) == 0:
+    #         avg_movies_gross_by_genre.append(0)
+    #         max_movies_gross_by_genre.append(0)
+    #     else:
+    #         avg_movies_gross_by_genre.append(sum(genre_gross) / len(genre_gross))
+    #         max_movies_gross_by_genre.append(max(genre_gross))
+    #
+    # return avg_movies_gross_by_genre, max_movies_gross_by_genre
 
 
 def append_none(data, func):
@@ -245,16 +259,23 @@ def append_none(data, func):
 #         params.append(person_features)
 #     return params
 
+def pad(list_to_pad, pad_with, length):
+    return list_to_pad + [pad_with] * (length - len(list_to_pad))
+
+
 def get_person_params(person, max_year):
+    default = [0]*7
+    if person is None:
+        return default
     gross, complex_gross, places, years = get_person_gross(person, max_year)
     num_of_movies = 5
     if len(years) == 0:
-        return [0] * 7
+        return default
     if len(years) > num_of_movies:
         year_diff = years[0] - years[num_of_movies - 1]
     else:
         year_diff = years[0] - years[-1]
-    return gross[:num_of_movies] + [np.mean(places[:num_of_movies]), year_diff]
+    return pad(gross[:num_of_movies], 0, num_of_movies) + [np.mean(places[:num_of_movies]), year_diff]
 
 
 def get_shuffled_actors(actors):
@@ -274,10 +295,12 @@ def get_movie_params(movie, with_shuffle):
     woman_ratio = movie.get("actress_ratio")
     avg_cast_age = movie.get("average_age")
     params = [date, num_of_actors, runtime, woman_ratio, avg_cast_age]
+    params += movie.get("genres_array")
     producer = movie.get("producer_enriched")
     director = movie.get("director_enriched")
     writer = movie.get("writer_enriched")
     actors = movie.get("cast_enriched")
+    people = [producer, director, writer] + pad(actors[:15], None, 15)
     actors = actors[:15]
     shuffled_actors = get_shuffled_actors(actors)
     i = 1
@@ -299,7 +322,7 @@ def get_all_params(db, genres, with_shuffle):
     # cast_num = [len(i) for i in cast]
     # runtime = get_list_of_details_feature(db, "Runtime")
     # usa_gross = get_gross(db)
-    # avg_movies_gross_by_genre, max_movies_gross_by_genre = get_genre(db, genres)
+    # avg_movies_gross_by_genre, max_movies_gross_by_genre = [get_genre(movie, genres) for movie in db]
     # avg_cast_age = get_list_of_feature(db, "average_age")
     # women_ratio = get_list_of_feature(db, "actress_ratio")
     # params = [cast_num, avg_movies_gross_by_genre, max_movies_gross_by_genre, women_ratio, avg_cast_age]
@@ -312,7 +335,7 @@ def get_all_params(db, genres, with_shuffle):
     #     params += get_person_params(actor_by_index)
     params = [get_movie_params(m, with_shuffle) for m in db]
     usa_gross = get_gross(db)
-    return usa_gross, list(zip(*params))
+    return usa_gross, params
 
 
 # creating histograms
@@ -391,7 +414,7 @@ def learn(with_shuffle=False):
     # with open(path_to_data + "db_test.json") as f:
     #     db = json.load(f)
     db = get_data(2015, 2017)
-    print(get_linear_predict(db, linear, genres))
+    print(get_linear_predict(db, linear))
 
 
 learn()
