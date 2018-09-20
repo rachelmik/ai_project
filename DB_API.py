@@ -6,7 +6,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
-
 from path_to_data import get_data_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
@@ -39,14 +38,17 @@ def check_len(data, func):
     return 0
 
 
-# getting personal data from perople files to movie files
-def enrich_person(person, max_year):
+def get_person_gross(person, max_year):
     movies = person["movies"]
     movies = [m for m in movies if m.get("year") < max_year]
     movies = sorted(movies, key=lambda k: k['year'], reverse=True)
     gross = []
     complex_gross = []
+    places = []
+    years = []
     for m in movies:
+        places.append(m.get("place"))
+        years.append(m.get("year"))
         gross_usa = m.get("details").get("Gross USA")
         if gross_usa is not None and isinstance(gross_usa, int):
             movie_gross = m.get("details").get("Gross USA")
@@ -57,6 +59,12 @@ def enrich_person(person, max_year):
             gross.append(movie_gross)
             complex_gross.append(movie_gross / m.get("place"))
 
+    return gross, complex_gross, places, years
+
+
+# getting personal data from perople files to movie files
+def enrich_person(person, max_year):
+    gross, complex_gross, places, years = get_person_gross(person, max_year)
     gross = gross[:5]
     complex_gross = complex_gross[:5]
     num_of_movies = len(gross)
@@ -82,14 +90,6 @@ def get_file_name(person, files_dict):
         except KeyError:
             continue
     return None
-
-
-def get_genres_binary_array():
-    db = get_data(2007, 2017)
-    genres = get_list_of_feature(db, "genres")
-    usa_gross = get_gross(db)
-    genres, usa_gross = remove_nones(genres, usa_gross)
-    return set([item for sublist in genres for item in sublist])
 
 
 def get_movie_person_data(movie):
@@ -149,22 +149,19 @@ def get_date_ts(date):
     return time.mktime(date) - time.mktime(year)
 
 
-def parse_dates(orig_dates):
-    dates = []
-    for i in orig_dates:
-        if i is None:
-            dates.append(None)
+def parse_date(orig_date):
+    date = None
+    if orig_date is None:
+        return None
+    for form in ['%d %B %Y ', '%B %Y ']:
+        try:
+            date = get_date_ts(time.strptime(orig_date.split("(")[0], form))
+            date = int(date / (24 * 60 * 60)) + 1
+            break
+        except ValueError:
             continue
-        parsed = False
-        for form in ['%d %B %Y ', '%B %Y ']:
-            try:
-                dates.append(get_date_ts(time.strptime(i.split("(")[0], form)))
-                parsed = True
-            except ValueError:
-                continue
-        if not parsed:
-            dates.append(None)
-    return dates
+
+    return date
 
 
 def get_gross(db):
@@ -217,39 +214,72 @@ def append_none(data, func):
     return result
 
 
-def get_person_params(person_list):
-    features = ["average_gross", "max_gross", "std_gross", "avg_gradient", "average_complex_gross"]
-    params = []
-    for feature in features:
-        # person_features = []
-        # for person in person_list:
-        #     if person is None:
-        #         person_features.append(None)
-        #     else:
-        #         person_features.append(person.get(feature))
-        person_features = append_none(person_list, lambda person: person.get(feature))
-        params.append(person_features)
+# def get_person_params(person_list):
+#     features = ["average_gross", "max_gross", "std_gross", "avg_gradient", "average_complex_gross"]
+#     params = []
+#     for feature in features:
+#         # person_features = []
+#         # for person in person_list:
+#         #     if person is None:
+#         #         person_features.append(None)
+#         #     else:
+#         #         person_features.append(person.get(feature))
+#         person_features = append_none(person_list, lambda person: person.get(feature))
+#         params.append(person_features)
+#     return params
+
+def get_person_params(person, max_year):
+    gross, complex_gross, places, years = get_person_gross(person, max_year)
+    num_of_movies = 5
+    if len(years) == 0:
+        return [0]*7
+    if len(years) > num_of_movies:
+        year_diff = years[0] - years[num_of_movies - 1]
+    else:
+        year_diff = years[0] - years[-1]
+    return gross[:num_of_movies] + [np.mean(places[:num_of_movies]), year_diff]
+
+
+def get_movie_params(movie):
+    date = parse_date(movie.get('details').get("Release Date"))
+    num_of_actors = len(movie.get("cast"))
+    runtime = movie.get('details').get("Runtime")
+    # TODO: genre binary vector
+    woman_ratio = movie.get("actress_ratio")
+    avg_cast_age = movie.get("average_age")
+    params = [date, num_of_actors, runtime, woman_ratio, avg_cast_age]
+    producer = movie.get("producer_enriched")
+    director = movie.get("director_enriched")
+    writer = movie.get("writer_enriched")
+    actors = movie.get("cast_enriched")
+    people = [producer, director, writer] + actors[:15]
+    year = movie.get("year")
+    for p in people:
+        params += get_person_params(p, year)
+
     return params
 
 
 def get_all_params(db, genres):
-    release_date = get_list_of_details_feature(db, "Release Date")
-    dates = parse_dates(release_date)
-    cast = get_list_of_feature(db, "cast")
-    cast_num = [len(i) for i in cast]
-    runtime = get_list_of_details_feature(db, "Runtime")
+    # release_date = get_list_of_details_feature(db, "Release Date")
+    # dates = [parse_date(date) for date in release_date]
+    # cast = get_list_of_feature(db, "cast")
+    # cast_num = [len(i) for i in cast]
+    # runtime = get_list_of_details_feature(db, "Runtime")
+    # usa_gross = get_gross(db)
+    # avg_movies_gross_by_genre, max_movies_gross_by_genre = get_genre(db, genres)
+    # avg_cast_age = get_list_of_feature(db, "average_age")
+    # women_ratio = get_list_of_feature(db, "actress_ratio")
+    # params = [cast_num, avg_movies_gross_by_genre, max_movies_gross_by_genre, women_ratio, avg_cast_age]
+    # params += get_person_params(get_list_of_feature(db, "producer_enriched"))
+    # params += get_person_params(get_list_of_feature(db, "director_enriched"))
+    # params += get_person_params(get_list_of_feature(db, "writer_enriched"))
+    # movies_cast = get_list_of_feature(db, "cast_enriched")
+    # for i in range(15):
+    #     actor_by_index = append_none(movies_cast, lambda actor: actor[i])
+    #     params += get_person_params(actor_by_index)
+    params = [get_movie_params(m) for m in db]
     usa_gross = get_gross(db)
-    avg_movies_gross_by_genre, max_movies_gross_by_genre = get_genre(db, genres)
-    avg_cast_age = get_list_of_feature(db, "average_age")
-    women_ratio = get_list_of_feature(db, "actress_ratio")
-    params = [cast_num, avg_movies_gross_by_genre, max_movies_gross_by_genre, women_ratio, avg_cast_age]
-    params += get_person_params(get_list_of_feature(db, "producer_enriched"))
-    params += get_person_params(get_list_of_feature(db, "director_enriched"))
-    params += get_person_params(get_list_of_feature(db, "writer_enriched"))
-    movies_cast = get_list_of_feature(db, "cast_enriched")
-    for i in range(15):
-        actor_by_index = append_none(movies_cast, lambda actor: actor[i])
-        params += get_person_params(actor_by_index)
     return usa_gross, list(zip(*params))
 
 
@@ -261,7 +291,7 @@ def create_hist(values_dic, is_big):
     index = np.arange(len(hist))
     rects1 = ax.bar(index, [i[1] for i in hist])
     if is_big:
-        ax.set_xticks(np.arange(9) * 5 - 0.5)
+        ax.set_xticks(np.arange(9)*5 - 0.5)
         ax.set_xticklabels([i for i in range(0, 450, 50)])
     else:
         ax.set_xticks(np.arange(len(hist)))
@@ -275,7 +305,7 @@ def create_range_hist(db, param):
     n, bins, patches = plt.hist(param, 50, weights=usa_gross)
     hist = {b: [] for b in bins[:-1]}
     for i in range(50):
-        hist[bins[i]] = [v for c, v in zip(param, usa_gross) if bins[i] <= c < bins[i + 1]]
+        hist[bins[i]] = [v for c, v in zip(param, usa_gross) if bins[i] <= c < bins[i+1]]
     create_hist(hist, True)
 
 
@@ -306,7 +336,7 @@ def get_linear_predict(db, linear, genres):
 def create_all_histograms():
     db = get_data(2007, 2017)
     release_date = get_list_of_details_feature(db, "Release Date")
-    dates = parse_dates(release_date)
+    dates = [parse_date(d) for d in release_date]
     cast = get_list_of_feature(db, "cast")
     cast = [len(i) for i in cast]
     year = get_list_of_feature(db, "year")
@@ -331,5 +361,4 @@ def learn():
     db = get_data(2015, 2017)
     print(get_linear_predict(db, linear, genres))
 
-
-get_data(2007,2017)
+learn()
