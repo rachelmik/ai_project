@@ -5,8 +5,9 @@ from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
+from path_to_data import get_data_path
 
-path_to_data = "C:/My/AI_project_data/"
+path_to_data = get_data_path()
 
 
 def get_data(min_year, max_year):
