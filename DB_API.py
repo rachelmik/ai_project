@@ -1,11 +1,17 @@
 import json
 import os
 import time
-from matplotlib import pyplot as plt
+
 import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
+
 from path_to_data import get_data_path
+
+all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
+                   ' Comedy', ' Family', ' Animation', ' Musical', ' Sport', ' News', ' Romance', ' Fantasy', ' Action',
+                   ' Sci-Fi', ' Western', ' Adventure', ' War']
 
 path_to_data = get_data_path()
 
@@ -16,8 +22,13 @@ def get_data(min_year, max_year):
         print(year)
         json_list = os.listdir(path_to_data + str(year))
         for json_file in json_list:
-            with open(path_to_data + str(year)+'/'+json_file) as f:
+            with open(path_to_data + str(year) + '/' + json_file) as f:
                 movie = json.load(f)
+                genres = [0]*22
+                for g in movie['genres']:
+                    index = all_genres_list.index(g)
+                    genres[index] = 1
+                movie['genres'] = genres
                 db.append(movie)
     return db
 
@@ -73,6 +84,14 @@ def get_file_name(person, files_dict):
     return None
 
 
+def get_genres_binary_array():
+    db = get_data(2007, 2017)
+    genres = get_list_of_feature(db, "genres")
+    usa_gross = get_gross(db)
+    genres, usa_gross = remove_nones(genres, usa_gross)
+    return set([item for sublist in genres for item in sublist])
+
+
 def get_movie_person_data(movie):
     with open(path_to_data + "people_links_dict.json") as f:
         files_dict = json.load(f)
@@ -126,8 +145,8 @@ def remove_nones(list1, list2):
 
 
 def get_date_ts(date):
-        year = time.strptime(str(date.tm_year), '%Y')
-        return time.mktime(date) - time.mktime(year)
+    year = time.strptime(str(date.tm_year), '%Y')
+    return time.mktime(date) - time.mktime(year)
 
 
 def parse_dates(orig_dates):
@@ -154,7 +173,7 @@ def get_gross(db):
         if movie.get('details').get("Gross USA") is None:
             movie["details"]["Gross USA"] = all_gross
     gross = get_list_of_details_feature(db, "Gross USA")
-    return [i / 10**6 for i in gross]
+    return [i / 10 ** 6 for i in gross]
 
 
 def get_genre_dict(db):
@@ -242,7 +261,7 @@ def create_hist(values_dic, is_big):
     index = np.arange(len(hist))
     rects1 = ax.bar(index, [i[1] for i in hist])
     if is_big:
-        ax.set_xticks(np.arange(9)*5 - 0.5)
+        ax.set_xticks(np.arange(9) * 5 - 0.5)
         ax.set_xticklabels([i for i in range(0, 450, 50)])
     else:
         ax.set_xticks(np.arange(len(hist)))
@@ -256,7 +275,7 @@ def create_range_hist(db, param):
     n, bins, patches = plt.hist(param, 50, weights=usa_gross)
     hist = {b: [] for b in bins[:-1]}
     for i in range(50):
-        hist[bins[i]] = [v for c, v in zip(param, usa_gross) if bins[i] <= c < bins[i+1]]
+        hist[bins[i]] = [v for c, v in zip(param, usa_gross) if bins[i] <= c < bins[i + 1]]
     create_hist(hist, True)
 
 
@@ -313,5 +332,4 @@ def learn():
     print(get_linear_predict(db, linear, genres))
 
 
-
-
+get_data(2007,2017)
