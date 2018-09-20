@@ -23,7 +23,24 @@ def get_data(min_year, max_year):
         for json_file in json_list:
             with open(path_to_data + str(year) + '/' + json_file) as f:
                 movie = json.load(f)
-                genres = [0]*22
+                genres = [0] * 22
+                for g in movie['genres']:
+                    index = all_genres_list.index(g)
+                    genres[index] = 1
+                movie['genres'] = genres
+                db.append(movie)
+    return db
+
+
+def get_data_with_actors_shuffles(min_year, max_year):
+    db = []
+    for year in range(min_year, max_year):
+        print(year)
+        json_list = os.listdir(path_to_data + str(year))
+        for json_file in json_list:
+            with open(path_to_data + str(year) + '/' + json_file) as f:
+                movie = json.load(f)
+                genres = [0] * 22
                 for g in movie['genres']:
                     index = all_genres_list.index(g)
                     genres[index] = 1
@@ -232,7 +249,7 @@ def get_person_params(person, max_year):
     gross, complex_gross, places, years = get_person_gross(person, max_year)
     num_of_movies = 5
     if len(years) == 0:
-        return [0]*7
+        return [0] * 7
     if len(years) > num_of_movies:
         year_diff = years[0] - years[num_of_movies - 1]
     else:
@@ -240,11 +257,20 @@ def get_person_params(person, max_year):
     return gross[:num_of_movies] + [np.mean(places[:num_of_movies]), year_diff]
 
 
-def get_movie_params(movie):
+def get_shuffled_actors(actors):
+    shuffled_actors = [actors]
+    temp_actors = actors
+    for i in range(1, 15):
+        last = temp_actors.pop(0)
+        temp_actors.append(last)
+        shuffled_actors.append(temp_actors)
+    return shuffled_actors
+
+
+def get_movie_params(movie, with_shuffle):
     date = parse_date(movie.get('details').get("Release Date"))
     num_of_actors = len(movie.get("cast"))
     runtime = movie.get('details').get("Runtime")
-    # TODO: genre binary vector
     woman_ratio = movie.get("actress_ratio")
     avg_cast_age = movie.get("average_age")
     params = [date, num_of_actors, runtime, woman_ratio, avg_cast_age]
@@ -252,7 +278,13 @@ def get_movie_params(movie):
     director = movie.get("director_enriched")
     writer = movie.get("writer_enriched")
     actors = movie.get("cast_enriched")
-    people = [producer, director, writer] + actors[:15]
+    actors = actors[:15]
+    shuffled_actors = get_shuffled_actors(actors)
+    i = 1
+    if with_shuffle:
+        i = 15
+    for i in range(0, i):
+        people = [producer, director, writer] + shuffled_actors[i]
     year = movie.get("year")
     for p in people:
         params += get_person_params(p, year)
@@ -260,7 +292,7 @@ def get_movie_params(movie):
     return params
 
 
-def get_all_params(db, genres):
+def get_all_params(db, genres, with_shuffle):
     # release_date = get_list_of_details_feature(db, "Release Date")
     # dates = [parse_date(date) for date in release_date]
     # cast = get_list_of_feature(db, "cast")
@@ -278,7 +310,7 @@ def get_all_params(db, genres):
     # for i in range(15):
     #     actor_by_index = append_none(movies_cast, lambda actor: actor[i])
     #     params += get_person_params(actor_by_index)
-    params = [get_movie_params(m) for m in db]
+    params = [get_movie_params(m, with_shuffle) for m in db]
     usa_gross = get_gross(db)
     return usa_gross, list(zip(*params))
 
@@ -291,7 +323,7 @@ def create_hist(values_dic, is_big):
     index = np.arange(len(hist))
     rects1 = ax.bar(index, [i[1] for i in hist])
     if is_big:
-        ax.set_xticks(np.arange(9)*5 - 0.5)
+        ax.set_xticks(np.arange(9) * 5 - 0.5)
         ax.set_xticklabels([i for i in range(0, 450, 50)])
     else:
         ax.set_xticks(np.arange(len(hist)))
@@ -305,7 +337,7 @@ def create_range_hist(db, param):
     n, bins, patches = plt.hist(param, 50, weights=usa_gross)
     hist = {b: [] for b in bins[:-1]}
     for i in range(50):
-        hist[bins[i]] = [v for c, v in zip(param, usa_gross) if bins[i] <= c < bins[i+1]]
+        hist[bins[i]] = [v for c, v in zip(param, usa_gross) if bins[i] <= c < bins[i + 1]]
     create_hist(hist, True)
 
 
@@ -319,15 +351,15 @@ def create_bars(db, param):
 
 
 # linear learning
-def get_linear_fit(db, genres):
-    usa_gross, X = get_all_params(db, genres)
+def get_linear_fit(db, genres, with_shuffle=False):
+    usa_gross, X = get_all_params(db, genres, with_shuffle)
     linear = LinearRegression()
     X, usa_gross = remove_nones(X, usa_gross)
     return linear.fit(X=X, y=usa_gross)
 
 
-def get_linear_predict(db, linear, genres):
-    usa_gross, X = get_all_params(db, genres)
+def get_linear_predict(db, linear, genres, with_shuffle=False):
+    usa_gross, X = get_all_params(db, genres, with_shuffle)
     X, usa_gross = remove_nones(X, usa_gross)
     predicts = linear.predict(X)
     return mean_squared_error(predicts, usa_gross)
@@ -350,15 +382,16 @@ def create_all_histograms():
     create_hist(genres, False)
 
 
-def learn():
+def learn(with_shuffle=False):
     # with open(path_to_data + "db_learn.json") as f:
     #     db = json.load(f)
     db = get_data(2007, 2015)
     genres = get_genre_dict(db)
-    linear = get_linear_fit(db, genres)
+    linear = get_linear_fit(db, genres, with_shuffle)
     # with open(path_to_data + "db_test.json") as f:
     #     db = json.load(f)
     db = get_data(2015, 2017)
     print(get_linear_predict(db, linear, genres))
+
 
 learn()
