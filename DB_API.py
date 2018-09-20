@@ -6,6 +6,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
+from sklearn.linear_model import Lasso
+
 from path_to_data import get_data_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
@@ -270,14 +272,14 @@ def get_movie_params(movie):
     avg_cast_age = movie.get("average_age")
     params = [date, num_of_actors, runtime, woman_ratio, avg_cast_age]
     params += movie.get("genres_array")
-    producer = movie.get("producer_enriched")
-    director = movie.get("director_enriched")
-    writer = movie.get("writer_enriched")
-    actors = movie.get("cast_enriched")
-    people = [producer, director, writer] + pad(actors[:15], None, 15)
-    year = movie.get("year")
-    for p in people:
-        params += get_person_params(p, year)
+    # producer = movie.get("producer_enriched")
+    # director = movie.get("director_enriched")
+    # writer = movie.get("writer_enriched")
+    # actors = movie.get("cast_enriched")
+    # people = [producer, director, writer] + pad(actors[:15], None, 15)
+    # year = movie.get("year")
+    # for p in people:
+    #     params += get_person_params(p, year)
 
     return params
 
@@ -343,7 +345,7 @@ def create_bars(db, param):
 # linear learning
 def get_linear_fit(db):
     usa_gross, X = get_all_params(db)
-    linear = LinearRegression()
+    linear = Lasso(alpha=1)
     X, usa_gross = remove_nones(X, usa_gross)
     return linear.fit(X=X, y=usa_gross)
 
