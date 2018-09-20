@@ -1,11 +1,16 @@
 import json
 import os
 import time
-from matplotlib import pyplot as plt
+
 import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from path_to_data import get_data_path
+
+all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
+                   ' Comedy', ' Family', ' Animation', ' Musical', ' Sport', ' News', ' Romance', ' Fantasy', ' Action',
+                   ' Sci-Fi', ' Western', ' Adventure', ' War']
 
 path_to_data = get_data_path()
 
@@ -21,11 +26,15 @@ def get_data(min_year, max_year):
     for year in range(min_year, max_year):
         print(year)
         json_list = os.listdir(path_to_data + str(year))
-        db += [read_json_file(year, json_file) for json_file in json_list]
-        # for json_file in json_list:
-        #     with open(path_to_data + str(year)+'/'+json_file) as f:
-        #         movie = json.load(f)
-        #         db.append(movie)
+        for json_file in json_list:
+            with open(path_to_data + str(year) + '/' + json_file) as f:
+                movie = json.load(f)
+                genres = [0]*22
+                for g in movie['genres']:
+                    index = all_genres_list.index(g)
+                    genres[index] = 1
+                movie['genres_array'] = genres
+                db.append(movie)
     return db
 
 
@@ -142,8 +151,8 @@ def remove_nones(list1, list2):
 
 
 def get_date_ts(date):
-        year = time.strptime(str(date.tm_year), '%Y')
-        return time.mktime(date) - time.mktime(year)
+    year = time.strptime(str(date.tm_year), '%Y')
+    return time.mktime(date) - time.mktime(year)
 
 
 def parse_date(orig_date):
@@ -167,7 +176,7 @@ def get_gross(db):
         if movie.get('details').get("Gross USA") is None:
             movie["details"]["Gross USA"] = all_gross
     gross = get_list_of_details_feature(db, "Gross USA")
-    return [i / 10**6 for i in gross]
+    return [i / 10 ** 6 for i in gross]
 
 
 def get_genre_dict(db):
@@ -252,7 +261,7 @@ def get_person_params(person, max_year):
     return pad(gross[:num_of_movies], 0, num_of_movies) + [np.mean(places[:num_of_movies]), year_diff]
 
 
-def get_movie_params(movie, genre):
+def get_movie_params(movie):
     date = parse_date(movie.get('details').get("Release Date"))
     num_of_actors = len(movie.get("cast"))
     runtime = movie.get('details').get("Runtime")
@@ -260,6 +269,7 @@ def get_movie_params(movie, genre):
     woman_ratio = movie.get("actress_ratio")
     avg_cast_age = movie.get("average_age")
     params = [date, num_of_actors, runtime, woman_ratio, avg_cast_age]
+    params += movie.get("genres_array")
     producer = movie.get("producer_enriched")
     director = movie.get("director_enriched")
     writer = movie.get("writer_enriched")
@@ -272,7 +282,7 @@ def get_movie_params(movie, genre):
     return params
 
 
-def get_all_params(db, genres):
+def get_all_params(db):
     # release_date = get_list_of_details_feature(db, "Release Date")
     # dates = [parse_date(date) for date in release_date]
     # cast = get_list_of_feature(db, "cast")
@@ -290,7 +300,7 @@ def get_all_params(db, genres):
     # for i in range(15):
     #     actor_by_index = append_none(movies_cast, lambda actor: actor[i])
     #     params += get_person_params(actor_by_index)
-    params = [get_movie_params(m, genres) for m in db]
+    params = [get_movie_params(m) for m in db]
     usa_gross = get_gross(db)
     return usa_gross, params
 
@@ -331,15 +341,15 @@ def create_bars(db, param):
 
 
 # linear learning
-def get_linear_fit(db, genres):
-    usa_gross, X = get_all_params(db, genres)
+def get_linear_fit(db):
+    usa_gross, X = get_all_params(db)
     linear = LinearRegression()
     X, usa_gross = remove_nones(X, usa_gross)
     return linear.fit(X=X, y=usa_gross)
 
 
-def get_linear_predict(db, linear, genres):
-    usa_gross, X = get_all_params(db, genres)
+def get_linear_predict(db, linear):
+    usa_gross, X = get_all_params(db)
     X, usa_gross = remove_nones(X, usa_gross)
     predicts = linear.predict(X)
     return mean_squared_error(predicts, usa_gross)
@@ -366,11 +376,10 @@ def learn():
     # with open(path_to_data + "db_learn.json") as f:
     #     db = json.load(f)
     db = get_data(2007, 2015)
-    genres = get_genre_dict(db)
-    linear = get_linear_fit(db, genres)
+    linear = get_linear_fit(db)
     # with open(path_to_data + "db_test.json") as f:
     #     db = json.load(f)
     db = get_data(2015, 2017)
-    print(get_linear_predict(db, linear, genres))
+    print(get_linear_predict(db, linear))
 
 learn()
