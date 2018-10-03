@@ -1,13 +1,15 @@
 import json
 import os
 import time
+from random import shuffle
 
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Lasso
-
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from path_to_data import get_data_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
@@ -52,8 +54,11 @@ def get_data_with_actors_shuffles(min_year, max_year):
                 for g in movie['genres']:
                     index = all_genres_list.index(g)
                     genres[index] = 1
-                movie['genres'] = genres
-                db.append(movie)
+                movie['genres_array'] = genres
+                shuffled_actors_array = get_shuffled_actors_array(movie["cast_enriched"])
+                for array in shuffled_actors_array:
+                    movie["cast_enriched"] = array
+                    db.append(movie)
     return db
 
 
@@ -266,7 +271,7 @@ def pad(list_to_pad, pad_with, length):
 
 
 def get_person_params(person, max_year):
-    default = [0]*7
+    default = [0] * 7
     if person is None:
         return default
     gross, complex_gross, places, years = get_person_gross(person, max_year)
@@ -280,17 +285,28 @@ def get_person_params(person, max_year):
     return pad(gross[:num_of_movies], 0, num_of_movies) + [np.mean(places[:num_of_movies]), year_diff]
 
 
-def get_shuffled_actors(actors):
-    shuffled_actors = [actors]
-    temp_actors = actors
-    for i in range(1, 15):
-        last = temp_actors.pop(0)
-        temp_actors.append(last)
-        shuffled_actors.append(temp_actors)
-    return shuffled_actors
+def get_shuffled_actors_array(actors):
+    shuffled_actors_array= []
+    shuffled_actors_array.append(actors.copy())
+    for i in range (4):
+        if None in actors:
+            shuffled_actors_array.append(actors.copy())
+            continue
+        shuffle(actors)
+        shuffled_actors_array.append(actors.copy())
+    # shuffled_actors = [actors]
+    # temp_actors = actors
+    # for i in range(1, 15):
+    #     try:
+    #         last = temp_actors.pop(0)
+    #         temp_actors.append(last)
+    #         shuffled_actors.append(temp_actors)
+    #     except IndexError:
+    #         break;
+    return shuffled_actors_array
 
 
-def get_movie_params(movie, with_shuffle):
+def get_movie_params(movie):
     date = parse_date(movie.get('details').get("Release Date"))
     num_of_actors = len(movie.get("cast"))
     runtime = movie.get('details').get("Runtime")
@@ -303,13 +319,6 @@ def get_movie_params(movie, with_shuffle):
     writer = movie.get("writer_enriched")
     actors = movie.get("cast_enriched")
     people = [producer, director, writer] + pad(actors[:15], None, 15)
-    actors = actors[:15]
-    shuffled_actors = get_shuffled_actors(actors)
-    i = 1
-    if with_shuffle:
-        i = 15
-    for i in range(0, i):
-        people = [producer, director, writer] + shuffled_actors[i]
     year = movie.get("year")
     for p in people:
         params += get_person_params(p, year)
@@ -317,7 +326,7 @@ def get_movie_params(movie, with_shuffle):
     return params
 
 
-def get_all_params(db, with_shuffle):
+def get_all_params(db):
     # release_date = get_list_of_details_feature(db, "Release Date")
     # dates = [parse_date(date) for date in release_date]
     # cast = get_list_of_feature(db, "cast")
@@ -335,7 +344,7 @@ def get_all_params(db, with_shuffle):
     # for i in range(15):
     #     actor_by_index = append_none(movies_cast, lambda actor: actor[i])
     #     params += get_person_params(actor_by_index)
-    params = [get_movie_params(m, with_shuffle) for m in db]
+    params = [get_movie_params(m) for m in db]
     usa_gross = get_gross(db)
     return usa_gross, params
 
@@ -376,18 +385,82 @@ def create_bars(db, param):
 
 
 # linear learning
-def get_linear_fit(db, with_shuffle=False):
-    usa_gross, X = get_all_params(db, with_shuffle)
+def get_linear_fit(db):
+    usa_gross, X = get_all_params(db)
     linear = Lasso(alpha=1)
     X, usa_gross = remove_nones(X, usa_gross)
     return linear.fit(X=X, y=usa_gross)
 
+def get_gaussian_fit(db):
+    usa_gross, X = get_all_params(db)
+    gp = GaussianProcessRegressor(corr='cubic', theta0=1e-2, thetaL=1e-4, thetaU=1e-1,
+                         random_start=100)
+    X, usa_gross = remove_nones(X, usa_gross)
+    return gp.fit(X=X, y=usa_gross)
 
-def get_linear_predict(db, linear, with_shuffle=False):
-    usa_gross, X = get_all_params(db, with_shuffle)
+def get_gaussian_predict(db, gp):
+    usa_gross, X = get_all_params(db)
+    X, usa_gross = remove_nones(X, usa_gross)
+    predicts = gp.predict(X)
+    return mean_squared_error(predicts, usa_gross)
+
+
+def get_linear_predict(db, linear):
+    usa_gross, X = get_all_params(db)
     X, usa_gross = remove_nones(X, usa_gross)
     predicts = linear.predict(X)
+    diff = get_diff(predicts, usa_gross)
+    print_diff_partition(diff)
+    plt.plot(diff)
+    plt.show()
     return mean_squared_error(predicts, usa_gross)
+
+
+def get_diff(predicts, gross):
+    diff = []
+    i = 0
+    for p in predicts:
+        d = abs(gross[i] - p)
+        diff.append(d)
+        i += 1
+    return diff
+
+
+def print_diff_partition(diff):
+    range = [0]*11
+    for d in diff:
+        if d <10:
+            range[0]+=1
+        elif d<20:
+            range[1]+=1
+        elif d<30 :
+            range[2]+=1
+        elif d<40:
+            range[3]+=1
+        elif d<50:
+            range[4]+=1
+        elif d<60:
+            range[5]+=1
+        elif d<70:
+            range[6]+=1
+        elif d<80:
+            range[7]+=1
+        elif d<90:
+            range[8]+=1
+        elif d<100:
+            range[9]+=1
+        else:
+            range[10]+=1
+    i=0
+    while i<11:
+        l = (i)*10
+        r = (i+1)*10
+        if r > 100:
+            r=500
+        p =float("{0:.2f}".format(range[i]/len(diff)*100))
+
+        print(f'movies with diff between {l} to {r} millions : {p}%')
+        i+=1
 
 
 def create_all_histograms():
@@ -407,15 +480,71 @@ def create_all_histograms():
     create_hist(genres, False)
 
 
-def learn(with_shuffle=False):
+def learn():
     # with open(path_to_data + "db_learn.json") as f:
     #     db = json.load(f)
-    db = get_data(2007, 2015)
-    linear = get_linear_fit(db, with_shuffle)
+    #db = get_data_with_actors_shuffles(2007, 2015)
+    db = get_data(2007,2015)
+    linear = get_linear_fit(db)
     # with open(path_to_data + "db_test.json") as f:
     #     db = json.load(f)
+    #db = get_data_with_actors_shuffles(2015, 2017)
     db = get_data(2015, 2017)
     print(get_linear_predict(db, linear))
 
 
+
+
+#todo: check if we are using the Gaussian currectly
+#todo: fix gaussian learn with shuffled data
+#todo: add L1,L2 regulation
+def gaussian_learn():
+    db = get_data(2007,2015)
+    #db = get_data_with_actors_shuffles(2007,2015)
+    usa_gross, X = get_all_params(db)
+    X, usa_gross = remove_nones(X, usa_gross)
+    #todo: maby choos another kernel that is not RBF
+    kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
+    gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+    gp.fit(X=X, y=usa_gross)
+    #db = get_data_with_actors_shuffles(2015, 2017)
+    db = get_data(2015, 2017)
+    usa_gross, X = get_all_params(db)
+    X, usa_gross = remove_nones(X, usa_gross)
+    # Mesh the input space for evaluations of the real function, the prediction and
+    # its MSE
+    #x = np.atleast_2d(np.linspace(0, 10, 1000)).T
+    y_pred, sigma = gp.predict(X, return_std=True)
+    # Plot the function, the prediction and the 95% confidence interval based on
+    # the MSE
+    diff = get_diff(y_pred, usa_gross)
+    print_diff_partition(diff)
+    plt.figure()
+    plt.plot(diff)
+    # plt.show()
+    #todo: fix mean_squared_error func for gaussian
+    return mean_squared_error(y_pred, usa_gross)
+    # plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
+    # plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
+    # plt.plot(x, y_pred, 'b-', label=u'Prediction')
+    # plt.fill(np.concatenate([x, x[::-1]]),
+    #          np.concatenate([y_pred - 1.9600 * sigma,
+    #                          (y_pred + 1.9600 * sigma)[::-1]]),
+    #          alpha=.5, fc='b', ec='None', label='95% confidence interval')
+    # plt.xlabel('$x$')
+    # plt.ylabel('$f(x)$')
+    # plt.ylim(-10, 20)
+    # plt.legend(loc='upper left')
+
+
 learn()
+
+
+gaussian_learn()
+
+
+# todo: gaos mesveg for all runs
+# todo: get inside the results and to see th presentege of the errors - DIDNT WORK!
+# todo: run with/without shuffle
+# todo: write the rapport
+# todo: add L2 regulation
