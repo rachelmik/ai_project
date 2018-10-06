@@ -5,6 +5,7 @@ from random import shuffle
 
 import numpy as np
 from matplotlib import pyplot as plt
+from sklearn import svm
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Lasso
@@ -25,7 +26,9 @@ def read_json_file(year, json_file):
     return movie
 
 
-def get_data(min_year, max_year):
+def get_data(min_year, max_year, is_shuffled=False):
+    if is_shuffled:
+        return get_data_with_actors_shuffles(min_year, max_year)
     db = []
     for year in range(min_year, max_year):
         print(year)
@@ -387,16 +390,10 @@ def create_bars(db, param):
 # linear learning
 def get_linear_fit(db):
     usa_gross, X = get_all_params(db)
-    linear = Lasso(alpha=1)
+    linear = Lasso(alpha=80)
     X, usa_gross = remove_nones(X, usa_gross)
     return linear.fit(X=X, y=usa_gross)
 
-def get_gaussian_fit(db):
-    usa_gross, X = get_all_params(db)
-    gp = GaussianProcessRegressor(corr='cubic', theta0=1e-2, thetaL=1e-4, thetaU=1e-1,
-                         random_start=100)
-    X, usa_gross = remove_nones(X, usa_gross)
-    return gp.fit(X=X, y=usa_gross)
 
 def get_gaussian_predict(db, gp):
     usa_gross, X = get_all_params(db)
@@ -427,40 +424,17 @@ def get_diff(predicts, gross):
 
 
 def print_diff_partition(diff):
-    range = [0]*11
+    d_range = [0]*11
     for d in diff:
-        if d <10:
-            range[0]+=1
-        elif d<20:
-            range[1]+=1
-        elif d<30 :
-            range[2]+=1
-        elif d<40:
-            range[3]+=1
-        elif d<50:
-            range[4]+=1
-        elif d<60:
-            range[5]+=1
-        elif d<70:
-            range[6]+=1
-        elif d<80:
-            range[7]+=1
-        elif d<90:
-            range[8]+=1
-        elif d<100:
-            range[9]+=1
-        else:
-            range[10]+=1
-    i=0
-    while i<11:
-        l = (i)*10
-        r = (i+1)*10
+        d_range[int(d) % 10] += 1
+    for i in range(11):
+        l = i * 10
+        r = (i+1) * 10
         if r > 100:
-            r=500
-        p =float("{0:.2f}".format(range[i]/len(diff)*100))
+            r = 500
+        p = float("{0:.2f}".format(d_range[i]/len(diff)*100))
 
-        print(f'movies with diff between {l} to {r} millions : {p}%')
-        i+=1
+        print('movies with diff between {} to {} millions : {}%'.format(l, r, p))
 
 
 def create_all_histograms():
@@ -480,50 +454,32 @@ def create_all_histograms():
     create_hist(genres, False)
 
 
-def learn():
-    # with open(path_to_data + "db_learn.json") as f:
-    #     db = json.load(f)
-    #db = get_data_with_actors_shuffles(2007, 2015)
-    db = get_data(2007,2015)
+def learn(is_shuffled=False):
+    db = get_data(2007, 2015, is_shuffled)
     linear = get_linear_fit(db)
-    # with open(path_to_data + "db_test.json") as f:
-    #     db = json.load(f)
-    #db = get_data_with_actors_shuffles(2015, 2017)
-    db = get_data(2015, 2017)
+    db = get_data(2015, 2017, is_shuffled)
     print(get_linear_predict(db, linear))
 
 
-
-
-#todo: check if we are using the Gaussian currectly
-#todo: fix gaussian learn with shuffled data
-#todo: add L1,L2 regulation
-def gaussian_learn():
-    db = get_data(2007,2015)
-    #db = get_data_with_actors_shuffles(2007,2015)
+# todo: add L1,L2 regulation
+def gaussian_learn(is_shuffled=False):
+    db = get_data(2007, 2015, is_shuffled)
     usa_gross, X = get_all_params(db)
     X, usa_gross = remove_nones(X, usa_gross)
-    #todo: maby choos another kernel that is not RBF
-    kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
-    gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+    # kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
+    # gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+    gp = svm.SVR(kernel='rbf')
     gp.fit(X=X, y=usa_gross)
-    #db = get_data_with_actors_shuffles(2015, 2017)
-    db = get_data(2015, 2017)
+    db = get_data(2015, 2017, is_shuffled)
     usa_gross, X = get_all_params(db)
     X, usa_gross = remove_nones(X, usa_gross)
-    # Mesh the input space for evaluations of the real function, the prediction and
-    # its MSE
-    #x = np.atleast_2d(np.linspace(0, 10, 1000)).T
-    y_pred, sigma = gp.predict(X, return_std=True)
-    # Plot the function, the prediction and the 95% confidence interval based on
-    # the MSE
+    y_pred = gp.predict(X)
     diff = get_diff(y_pred, usa_gross)
     print_diff_partition(diff)
     plt.figure()
     plt.plot(diff)
-    # plt.show()
-    #todo: fix mean_squared_error func for gaussian
-    return mean_squared_error(y_pred, usa_gross)
+    plt.show()
+    print(mean_squared_error(y_pred, usa_gross))
     # plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
     # plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
     # plt.plot(x, y_pred, 'b-', label=u'Prediction')
@@ -540,7 +496,7 @@ def gaussian_learn():
 learn()
 
 
-gaussian_learn()
+# gaussian_learn()
 
 
 # todo: gaos mesveg for all runs
