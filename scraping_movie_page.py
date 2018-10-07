@@ -1,5 +1,8 @@
 import requests
+import json
+import os
 from bs4 import BeautifulSoup
+from multiprocessing import Process
 
 
 class Metadata:
@@ -147,12 +150,29 @@ class MovieOfPersonMetadata(MovieMetadata):
         return count
 
 
-if __name__ == '__main__':
-    # url = "https://www.imdb.com/title/tt4160100/?ref_=fn_al_tt_1"
-    # movie = MovieMetadata(url)
-    url = "https://www.imdb.com/title/tt4824302/?ref_=nm_flmg_act_7"
-    movie = MovieOfPersonMetadata(url, "Mark Fasano", "producer")
-    print(movie.place)
+def scrap_ratings(file_list):
+    for file in file_list:
+        print(file)
+        with open(file) as f:
+            movie = json.load(f)
+        url = movie["base_url"]
+        bs = Metadata.get_soup(url)
+        rating = bs.find("span", {"itemprop": "ratingValue"})
+        movie["rating"] = rating.text
+        with open(file.split(".")[0] + "_with_rating.json", "w+") as f:
+            json.dump(movie, f)
 
+
+if __name__ == '__main__':
+    from path_to_data import get_data_path
+    data_path = get_data_path()
+    file_list = []
+    for year in range(2007, 2016):
+        base_path = data_path + str(year)
+        file_list += ["{}/{}".format(base_path, i) for i in os.listdir(base_path)]
+    jump = 100
+    for i in range(0, len(file_list), jump):
+        p = Process(target=scrap_ratings, args=(file_list[i:i + jump],))
+        p.start()
 
 
