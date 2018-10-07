@@ -9,8 +9,6 @@ from sklearn import svm
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Lasso
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from path_to_data import get_data_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
@@ -330,23 +328,6 @@ def get_movie_params(movie):
 
 
 def get_all_params(db):
-    # release_date = get_list_of_details_feature(db, "Release Date")
-    # dates = [parse_date(date) for date in release_date]
-    # cast = get_list_of_feature(db, "cast")
-    # cast_num = [len(i) for i in cast]
-    # runtime = get_list_of_details_feature(db, "Runtime")
-    # usa_gross = get_gross(db)
-    # avg_movies_gross_by_genre, max_movies_gross_by_genre = [get_genre(movie, genres) for movie in db]
-    # avg_cast_age = get_list_of_feature(db, "average_age")
-    # women_ratio = get_list_of_feature(db, "actress_ratio")
-    # params = [cast_num, avg_movies_gross_by_genre, max_movies_gross_by_genre, women_ratio, avg_cast_age]
-    # params += get_person_params(get_list_of_feature(db, "producer_enriched"))
-    # params += get_person_params(get_list_of_feature(db, "director_enriched"))
-    # params += get_person_params(get_list_of_feature(db, "writer_enriched"))
-    # movies_cast = get_list_of_feature(db, "cast_enriched")
-    # for i in range(15):
-    #     actor_by_index = append_none(movies_cast, lambda actor: actor[i])
-    #     params += get_person_params(actor_by_index)
     params = [get_movie_params(m) for m in db]
     usa_gross = get_gross(db)
     return usa_gross, params
@@ -387,30 +368,25 @@ def create_bars(db, param):
     create_hist(hist, False)
 
 
-# linear learning
-def get_linear_fit(db):
-    usa_gross, X = get_all_params(db)
-    linear = Lasso(alpha=80)
+def get_set(set_type, is_shuffled=False):
+    shuffled = "_shuffled" if is_shuffled else ""
+    set_file_path = path_to_data + "{}_set{}.json".format(set_type, shuffled)
+    if os.path.isfile(set_file_path):
+        with open(set_file_path) as f:
+            X, usa_gross = json.load(f)
+    else:
+        if set_type == "training":
+            db = get_data(2007, 2015, is_shuffled)
+        elif set_type == "test":
+            db = get_data(2015, 2017, is_shuffled)
+        else:
+            raise ValueError("{} not a valid set type".format(set_type))
+        usa_gross, X = get_all_params(db)
+        with open(set_file_path, "w+") as f:
+            json.dump((X, usa_gross), f)
+
     X, usa_gross = remove_nones(X, usa_gross)
-    return linear.fit(X=X, y=usa_gross)
-
-
-def get_gaussian_predict(db, gp):
-    usa_gross, X = get_all_params(db)
-    X, usa_gross = remove_nones(X, usa_gross)
-    predicts = gp.predict(X)
-    return mean_squared_error(predicts, usa_gross)
-
-
-def get_linear_predict(db, linear):
-    usa_gross, X = get_all_params(db)
-    X, usa_gross = remove_nones(X, usa_gross)
-    predicts = linear.predict(X)
-    diff = get_diff(predicts, usa_gross)
-    print_diff_partition(diff)
-    plt.plot(diff)
-    plt.show()
-    return mean_squared_error(predicts, usa_gross)
+    return X, usa_gross
 
 
 def get_diff(predicts, gross):
@@ -454,25 +430,39 @@ def create_all_histograms():
     create_hist(genres, False)
 
 
-def learn(is_shuffled=False):
-    db = get_data(2007, 2015, is_shuffled)
-    linear = get_linear_fit(db)
-    db = get_data(2015, 2017, is_shuffled)
-    print(get_linear_predict(db, linear))
+# linear learning
+def get_linear_fit(is_shuffled):
+    linear = Lasso(alpha=80)
+    print("getting training data")
+    X, usa_gross = get_set("training", is_shuffled)
+    print("learning")
+    return linear.fit(X=X, y=usa_gross)
 
 
-# todo: add L1,L2 regulation
+def get_linear_predict(is_shuffled, linear):
+    print("getting test data")
+    X, usa_gross = get_set("test", is_shuffled)
+    predicts = linear.predict(X)
+    diff = get_diff(predicts, usa_gross)
+    print_diff_partition(diff)
+    plt.plot(diff)
+    plt.show()
+    return mean_squared_error(predicts, usa_gross)
+
+
+def linear_learn(is_shuffled=False):
+    linear = get_linear_fit(is_shuffled)
+    print(get_linear_predict(is_shuffled, linear))
+
+
 def gaussian_learn(is_shuffled=False):
-    db = get_data(2007, 2015, is_shuffled)
-    usa_gross, X = get_all_params(db)
-    X, usa_gross = remove_nones(X, usa_gross)
-    # kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
-    # gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+    print("getting training data")
+    X, usa_gross = get_set("training", is_shuffled)
     gp = svm.SVR(kernel='rbf')
+    print("learning")
     gp.fit(X=X, y=usa_gross)
-    db = get_data(2015, 2017, is_shuffled)
-    usa_gross, X = get_all_params(db)
-    X, usa_gross = remove_nones(X, usa_gross)
+    print("getting test data")
+    X, usa_gross = get_set("test", is_shuffled)
     y_pred = gp.predict(X)
     diff = get_diff(y_pred, usa_gross)
     print_diff_partition(diff)
@@ -493,14 +483,8 @@ def gaussian_learn(is_shuffled=False):
     # plt.legend(loc='upper left')
 
 
-learn()
+# linear_learn()
+
+gaussian_learn()
 
 
-# gaussian_learn()
-
-
-# todo: gaos mesveg for all runs
-# todo: get inside the results and to see th presentege of the errors - DIDNT WORK!
-# todo: run with/without shuffle
-# todo: write the rapport
-# todo: add L2 regulation
