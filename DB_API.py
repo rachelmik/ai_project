@@ -6,9 +6,9 @@ from random import shuffle
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn import svm
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Lasso
+from sklearn.neural_network import MLPRegressor
 from path_to_data import get_data_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
@@ -272,38 +272,29 @@ def pad(list_to_pad, pad_with, length):
 
 
 def get_person_params(person, max_year):
-    default = [0] * 7
+    num_of_movies = 3
+    default = [0] * num_of_movies
     if person is None:
         return default
     gross, complex_gross, places, years = get_person_gross(person, max_year)
-    num_of_movies = 5
     if len(years) == 0:
         return default
     if len(years) > num_of_movies:
         year_diff = years[0] - years[num_of_movies - 1]
     else:
         year_diff = years[0] - years[-1]
-    return pad(gross[:num_of_movies], 0, num_of_movies) + [np.mean(places[:num_of_movies]), year_diff]
+    return pad(gross[:num_of_movies], 0, num_of_movies)
 
 
 def get_shuffled_actors_array(actors):
-    shuffled_actors_array= []
+    shuffled_actors_array = []
     shuffled_actors_array.append(actors.copy())
-    for i in range (4):
+    for i in range(4):
         if None in actors:
             shuffled_actors_array.append(actors.copy())
             continue
         shuffle(actors)
         shuffled_actors_array.append(actors.copy())
-    # shuffled_actors = [actors]
-    # temp_actors = actors
-    # for i in range(1, 15):
-    #     try:
-    #         last = temp_actors.pop(0)
-    #         temp_actors.append(last)
-    #         shuffled_actors.append(temp_actors)
-    #     except IndexError:
-    #         break;
     return shuffled_actors_array
 
 
@@ -319,7 +310,8 @@ def get_movie_params(movie):
     director = movie.get("director_enriched")
     writer = movie.get("writer_enriched")
     actors = movie.get("cast_enriched")
-    people = [producer, director, writer] + pad(actors[:15], None, 15)
+    num_of_actors_picked = 35
+    people = [producer, director, writer] + pad(actors[:num_of_actors_picked], None, num_of_actors_picked)
     year = movie.get("year")
     for p in people:
         params += get_person_params(p, year)
@@ -349,8 +341,7 @@ def create_hist(values_dic, is_big):
     plt.show()
 
 
-def create_range_hist(db, param):
-    usa_gross = get_gross(db)
+def create_range_hist(usa_gross, param):
     param, usa_gross = remove_nones(param, usa_gross)
     n, bins, patches = plt.hist(param, 50, weights=usa_gross)
     hist = {b: [] for b in bins[:-1]}
@@ -359,8 +350,7 @@ def create_range_hist(db, param):
     create_hist(hist, True)
 
 
-def create_bars(db, param):
-    usa_gross = get_gross(db)
+def create_bars(usa_gross, param):
     param, usa_gross = remove_nones(param, usa_gross)
     hist = {b: [] for b in set(param)}
     for p, g in zip(param, usa_gross):
@@ -414,62 +404,93 @@ def print_diff_partition(diff):
 
 
 def create_all_histograms():
-    db = get_data(2007, 2017)
-    release_date = get_list_of_details_feature(db, "Release Date")
-    dates = [parse_date(d) for d in release_date]
-    cast = get_list_of_feature(db, "cast")
-    cast = [len(i) for i in cast]
-    year = get_list_of_feature(db, "year")
-    runtime = get_list_of_details_feature(db, "Runtime")
+    # db = get_data(2007, 2017)
+    # release_date = get_list_of_details_feature(db, "Release Date")
+    # dates = [parse_date(d) for d in release_date]
+    # cast = get_list_of_feature(db, "cast")
+    # cast = [len(i) for i in cast]
+    # year = get_list_of_feature(db, "year")
+    # runtime = get_list_of_details_feature(db, "Runtime")
+    # usa_gross = get_gross(db)
+    with open(f'{path_to_data}histogram_data.json') as f:
+        data = json.load(f)
 
-    create_bars(db, year)
-    create_range_hist(db, dates)
-    create_range_hist(db, cast)
-    create_range_hist(db, runtime)
-    genres = get_genre_dict(db)
-    create_hist(genres, False)
+    usa_gross = data["gross"]
+
+    create_bars(usa_gross, data["year"])
+    # create_range_hist(usa_gross, data["dates"])
+    # create_range_hist(usa_gross, data["cast"])
+    # create_range_hist(usa_gross, data["runtime"])
+    # genres = get_genre_dict(db)
+    # create_hist(data["genres"], False)
+    # with open(f'{path_to_data}histogram_data.json', "w+") as f:
+    #     json.dump({"dates": dates, "cast": cast, "year": year, "runtime": runtime,
+    #                "genres": genres, "gross": usa_gross}, f)
+    #
+
+
+def pick_needed_features(linear, X):
+    needed_feature_indexes = [i for i in range(len(linear.coef_)) if linear.coef_[i]]
+    X = np.array(X)
+    picked_X = [X[:, i] for i in needed_feature_indexes]
+    return np.array(list(zip(*picked_X)))
 
 
 # linear learning
-def get_linear_fit(is_shuffled):
-    linear = Lasso(alpha=80)
+def get_linear_fit(is_shuffled=False):
+    linears = [Lasso(alpha=a) for a in [80]]
     print("getting training data")
     X, usa_gross = get_set("training", is_shuffled)
     print("learning")
-    return linear.fit(X=X, y=usa_gross)
+    linears = [linear.fit(X=X, y=usa_gross) for linear in linears]
+    predicts = [linear.predict(X) for linear in linears]
+    m = [mean_squared_error(p, usa_gross) for p in predicts]
+    print("training linear ", m)
+    return linears
 
 
-def get_linear_predict(is_shuffled, linear):
+def get_linear_predict(is_shuffled, linears):
     print("getting test data")
     X, usa_gross = get_set("test", is_shuffled)
-    predicts = linear.predict(X)
-    diff = get_diff(predicts, usa_gross)
-    print_diff_partition(diff)
-    plt.plot(diff)
-    plt.show()
-    return mean_squared_error(predicts, usa_gross)
+    predicts = [linear.predict(X) for linear in linears]
+    # diff = get_diff(predicts, usa_gross)
+    # print_diff_partition(diff)
+    # plt.plot(diff)
+    # plt.show()
+    m = [mean_squared_error(p, usa_gross) for p in predicts]
+    print("test linear", m)
+    # return mean_squared_error(predicts, usa_gross)
 
 
 def linear_learn(is_shuffled=False):
-    linear = get_linear_fit(is_shuffled)
-    print(get_linear_predict(is_shuffled, linear))
+    linears = get_linear_fit(is_shuffled)
+    get_linear_predict(is_shuffled, linears)
+    # print(get_linear_predict(is_shuffled, linears))
 
 
 def gaussian_learn(is_shuffled=False):
+    linear = get_linear_fit(is_shuffled)[0]
     print("getting training data")
     X, usa_gross = get_set("training", is_shuffled)
-    gp = svm.SVR(kernel='rbf')
+    X_picked = pick_needed_features(linear, X)
+    gps = [svm.SVR(kernel='poly', degree=2) for g in [1]]
     print("learning")
-    gp.fit(X=X, y=usa_gross)
+    gps = [gp.fit(X=X_picked, y=usa_gross) for gp in gps]
+    print("predicting on training")
+    y_pred = [gp.predict(X_picked) for gp in gps]
+    m = [mean_squared_error(p, usa_gross) for p in y_pred]
+    print("training results:", m)
     print("getting test data")
     X, usa_gross = get_set("test", is_shuffled)
-    y_pred = gp.predict(X)
-    diff = get_diff(y_pred, usa_gross)
-    print_diff_partition(diff)
-    plt.figure()
-    plt.plot(diff)
-    plt.show()
-    print(mean_squared_error(y_pred, usa_gross))
+    X_picked = pick_needed_features(linear, X)
+    y_pred = [gp.predict(X_picked) for gp in gps]
+    # diff = get_diff(y_pred, usa_gross)
+    # print_diff_partition(diff)
+    # plt.figure()
+    # plt.plot(diff)
+    # plt.show()
+    m = [mean_squared_error(p, usa_gross) for p in y_pred]
+    print("test results:", m)
     # plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
     # plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
     # plt.plot(x, y_pred, 'b-', label=u'Prediction')
@@ -483,8 +504,38 @@ def gaussian_learn(is_shuffled=False):
     # plt.legend(loc='upper left')
 
 
+def neural_network():
+    print("getting training data")
+    X, usa_gross = get_set("training")
+    # linear = get_linear_fit()[0]
+    # X_picked = pick_needed_features(linear, X)
+    X_picked = X
+    net = MLPRegressor(hidden_layer_sizes=(100, 100, 100, 100, 100, 100))
+    net.fit(X_picked, usa_gross)
+    predicts = net.predict(X_picked)
+    print("training results:",  mean_squared_error(predicts, usa_gross))
+    X, usa_gross = get_set("test")
+    X_picked = X
+    # X_picked = pick_needed_features(linear, X)
+    predicts = net.predict(X_picked)
+    print("test results:", mean_squared_error(predicts, usa_gross))
+
+
 # linear_learn()
 
 gaussian_learn()
 
+# neural_network()
 
+# create_all_histograms()
+# x = [10**(-i) for i in range(10)]
+# training = [4706.0844146979225, 4705.538544429718, 4701.5240069889505, 4649.462839836307, 4463.845319768954, 3753.198360360228, 3396.6738359355327, 4349.101691108962, 4728.000610503838, 4767.971936639001]
+# test = [5767.125207842541, 5766.5398678762285, 5761.986805557549, 5707.238276485438, 5518.578684352951, 4753.367065523703, 4223.027292326871, 5273.255382710276, 5718.06296263596, 5766.08767727686]
+# plt.semilogx(x, training, label="training set")
+# plt.semilogx(x, test, label="test set")
+# plt.grid()
+# plt.xlabel("Gamma")
+# plt.ylabel("MSE (in millions USD)")
+# plt.title("SVM with Gaussian kernel - results vs gamma")
+# plt.legend()
+# plt.show()
