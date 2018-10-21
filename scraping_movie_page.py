@@ -3,6 +3,7 @@ import json
 import os
 from bs4 import BeautifulSoup
 from multiprocessing import Process
+from path_to_data import get_data_path
 
 
 class Metadata:
@@ -151,28 +152,37 @@ class MovieOfPersonMetadata(MovieMetadata):
 
 
 def scrap_ratings(file_list):
+    data_path = get_data_path()[:-1]
     for file in file_list:
         print(file)
         with open(file) as f:
             movie = json.load(f)
         url = movie["base_url"]
-        bs = Metadata.get_soup(url)
+        try:
+            bs = Metadata.get_soup(url)
+        except RuntimeError:
+            print("url problem")
+            continue
         rating = bs.find("span", {"itemprop": "ratingValue"})
-        movie["rating"] = rating.text
-        with open(file.split(".")[0] + "_with_rating.json", "w+") as f:
-            json.dump(movie, f)
+        try:
+            movie["rating"] = rating.text
+            year = file.split("/")[-2]
+            with open(f'{data_path}-with_rating/{year}/{file.split("/")[-1]}', "w+") as f:
+                json.dump(movie, f)
+        except AttributeError:
+            continue
 
 
 if __name__ == '__main__':
-    from path_to_data import get_data_path
     data_path = get_data_path()
     file_list = []
-    for year in range(2007, 2016):
+    for year in range(2007, 2017):
         base_path = data_path + str(year)
-        file_list += ["{}/{}".format(base_path, i) for i in os.listdir(base_path)]
+        with_rating_path = f'C:/My/AI_project/AI_project_data-with_rating/{year}'
+        file_list += [f'{base_path}/{i}' for i in os.listdir(base_path) if i not in os.listdir(with_rating_path)]
     jump = 100
-    for i in range(0, len(file_list), jump):
-        p = Process(target=scrap_ratings, args=(file_list[i:i + jump],))
-        p.start()
-
+    print(len(file_list))
+    # for i in range(0, len(file_list), jump):
+    #     p = Process(target=scrap_ratings, args=(file_list[i:i + jump],))
+    #     p.start()
 
