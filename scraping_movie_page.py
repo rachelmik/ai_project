@@ -3,7 +3,7 @@ import json
 import os
 from bs4 import BeautifulSoup
 from multiprocessing import Process
-from path_to_data import get_data_path
+from path_to_data import get_data_path, get_base_path
 
 
 class Metadata:
@@ -167,22 +167,22 @@ def scrap_ratings(file_list):
         try:
             movie["rating"] = rating.text
             year = file.split("/")[-2]
-            with open(f'{data_path}-with_rating/{year}/{file.split("/")[-1]}', "w+") as f:
+            with open(f'{data_path}/{year}/{file.split("/")[-1]}', "w+") as f:
                 json.dump(movie, f)
         except AttributeError:
             continue
 
 
 if __name__ == '__main__':
-    data_path = get_data_path()
+    data_path = get_base_path()
     file_list = []
-    for year in range(2007, 2017):
+    for year in range(2012, 2013):
         base_path = data_path + str(year)
-        with_rating_path = f'C:/My/AI_project/AI_project_data-with_rating/{year}'
+        with_rating_path = f'{get_data_path()}{year}'
         file_list += [f'{base_path}/{i}' for i in os.listdir(base_path) if i not in os.listdir(with_rating_path)]
     jump = 100
     print(len(file_list))
-    # for i in range(0, len(file_list), jump):
-    #     p = Process(target=scrap_ratings, args=(file_list[i:i + jump],))
-    #     p.start()
+    for i in range(0, len(file_list), jump):
+        p = Process(target=scrap_ratings, args=(file_list[i:i + jump],))
+        p.start()
 

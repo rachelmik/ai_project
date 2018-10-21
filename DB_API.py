@@ -35,7 +35,11 @@ def get_data(min_year, max_year, is_shuffled=False):
             if json_file == "desktop.ini":
                 continue
             with open(path_to_data + str(year) + '/' + json_file) as f:
-                movie = json.load(f)
+                try:
+                    movie = json.load(f)
+                except Exception:
+                    print(json_file)
+                    raise RuntimeError
                 genres = [0] * 22
                 for g in movie['genres']:
                     index = all_genres_list.index(g)
@@ -455,7 +459,7 @@ def pick_needed_features(linear, X):
 def double_layer_params(mode, set_type, is_shuffled=False):
     X, usa_gross, rating = get_set(set_type, is_shuffled)
     if mode == "rating":
-        y = rating
+        y = [float(r) for r in rating]
     elif mode == "single":
         y = usa_gross
     else:
@@ -497,9 +501,9 @@ def single_linear_learn(is_shuffled=False):
 def double_linear_learn():
     X, y = double_layer_params("rating", "training")
     linears_raiting = get_linear_fit(X, y)
-    ratings_training = get_linear_predict(linears_raiting, X, y)
+    ratings_training = get_linear_predict(linears_raiting, X, y)[0]
     X, y = double_layer_params("rating", "test")
-    ratings_test = get_linear_predict(linears_raiting, X, y)
+    ratings_test = get_linear_predict(linears_raiting, X, y)[0]
 
     X, y = double_layer_params("single", "training")
     for i in range(len(X)):
@@ -565,7 +569,7 @@ def neural_network():
     print("test results:", mean_squared_error(predicts, usa_gross))
 
 
-single_linear_learn()
+double_linear_learn()
 
 # gaussian_learn()
 
