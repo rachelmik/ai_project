@@ -167,7 +167,7 @@ if __name__ == '__main__':
     from path_to_data import get_data_path
     data_path = get_data_path()
     file_list = []
-    for year in range(2007, 2016):
+    for year in range(2016, 2017):
         base_path = data_path + str(year)
         file_list += ["{}/{}".format(base_path, i) for i in os.listdir(base_path)]
     jump = 100
