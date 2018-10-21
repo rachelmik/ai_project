@@ -32,6 +32,8 @@ def get_data(min_year, max_year, is_shuffled=False):
         print(year)
         json_list = os.listdir(path_to_data + str(year))
         for json_file in json_list:
+            if json_file == "desktop.ini":
+                continue
             with open(path_to_data + str(year) + '/' + json_file) as f:
                 movie = json.load(f)
                 genres = [0] * 22
@@ -168,7 +170,12 @@ def get_list_of_feature(db, feature):
     return [movie.get(feature) for movie in db]
 
 
-def remove_nones(list1, list2):
+def remove_nones(list1, list2, list3=None):
+    if list3:
+        try:
+            return zip(*[(i, j, k) for i, j, k in zip(list1, list2, list3) if None not in i and j != 0])
+        except TypeError:
+            return zip(*[(i, j, k) for i, j, k in zip(list1, list2, list3) if i is not None and j != 0])
     try:
         return zip(*[(i, j) for i, j in zip(list1, list2) if None not in i and j != 0])
     except TypeError:
@@ -202,6 +209,14 @@ def get_gross(db):
             movie["details"]["Gross USA"] = all_gross
     gross = get_list_of_details_feature(db, "Gross USA")
     return [i / 10 ** 6 for i in gross]
+
+
+def get_ratings(db):
+    ratings = []
+    for movie in db:
+        if movie.get('rating') is not None:
+            ratings.append(movie.get('rating'))
+    return ratings
 
 
 def get_genre_dict(db):
@@ -322,7 +337,8 @@ def get_movie_params(movie):
 def get_all_params(db):
     params = [get_movie_params(m) for m in db]
     usa_gross = get_gross(db)
-    return usa_gross, params
+    ratings = get_ratings(db)
+    return usa_gross, params, ratings
 
 
 # creating histograms
@@ -363,7 +379,7 @@ def get_set(set_type, is_shuffled=False):
     set_file_path = path_to_data + "{}_set{}.json".format(set_type, shuffled)
     if os.path.isfile(set_file_path):
         with open(set_file_path) as f:
-            X, usa_gross = json.load(f)
+            X, usa_gross, ratings = json.load(f)
     else:
         if set_type == "training":
             db = get_data(2007, 2015, is_shuffled)
@@ -371,12 +387,12 @@ def get_set(set_type, is_shuffled=False):
             db = get_data(2015, 2017, is_shuffled)
         else:
             raise ValueError("{} not a valid set type".format(set_type))
-        usa_gross, X = get_all_params(db)
+        usa_gross, X, ratings = get_all_params(db)
         with open(set_file_path, "w+") as f:
-            json.dump((X, usa_gross), f)
+            json.dump((X, usa_gross, ratings), f)
 
-    X, usa_gross = remove_nones(X, usa_gross)
-    return X, usa_gross
+    X, usa_gross, ratings = remove_nones(X, usa_gross, ratings)
+    return X, usa_gross, ratings
 
 
 def get_diff(predicts, gross):
@@ -436,42 +452,70 @@ def pick_needed_features(linear, X):
     return np.array(list(zip(*picked_X)))
 
 
+def double_layer_params(mode, set_type, is_shuffled=False):
+    X, usa_gross, rating = get_set(set_type, is_shuffled)
+    if mode == "rating":
+        y = rating
+    elif mode == "single":
+        y = usa_gross
+    else:
+        raise RuntimeError
+
+    return X, y
+
+
 # linear learning
-def get_linear_fit(is_shuffled=False):
+def get_linear_fit(X, y):
     linears = [Lasso(alpha=a) for a in [80]]
     print("getting training data")
-    X, usa_gross = get_set("training", is_shuffled)
-    print("learning")
-    linears = [linear.fit(X=X, y=usa_gross) for linear in linears]
+    linears = [linear.fit(X=X, y=y) for linear in linears]
     predicts = [linear.predict(X) for linear in linears]
-    m = [mean_squared_error(p, usa_gross) for p in predicts]
+    m = [mean_squared_error(p, y) for p in predicts]
     print("training linear ", m)
     return linears
 
 
-def get_linear_predict(is_shuffled, linears):
+def get_linear_predict(linears, X, y):
     print("getting test data")
-    X, usa_gross = get_set("test", is_shuffled)
     predicts = [linear.predict(X) for linear in linears]
     # diff = get_diff(predicts, usa_gross)
     # print_diff_partition(diff)
     # plt.plot(diff)
     # plt.show()
-    m = [mean_squared_error(p, usa_gross) for p in predicts]
+    m = [mean_squared_error(p, y) for p in predicts]
     print("test linear", m)
-    # return mean_squared_error(predicts, usa_gross)
+    return predicts
 
 
-def linear_learn(is_shuffled=False):
-    linears = get_linear_fit(is_shuffled)
-    get_linear_predict(is_shuffled, linears)
-    # print(get_linear_predict(is_shuffled, linears))
+def single_linear_learn(is_shuffled=False):
+    X, y = double_layer_params("single", "training", is_shuffled)
+    linears = get_linear_fit(X, y)
+    X, y = double_layer_params("single", "test", is_shuffled)
+    get_linear_predict(linears, X, y)
+
+
+def double_linear_learn():
+    X, y = double_layer_params("rating", "training")
+    linears_raiting = get_linear_fit(X, y)
+    ratings_training = get_linear_predict(linears_raiting, X, y)
+    X, y = double_layer_params("rating", "test")
+    ratings_test = get_linear_predict(linears_raiting, X, y)
+
+    X, y = double_layer_params("single", "training")
+    for i in range(len(X)):
+        X[i].append(ratings_training[i])
+    linears_gross = get_linear_fit(X, y)
+
+    X, y = double_layer_params("single", "test")
+    for i in range(len(X)):
+        X[i].append(ratings_test[i])
+    get_linear_predict(linears_gross, X, y)
 
 
 def gaussian_learn(is_shuffled=False):
     linear = get_linear_fit(is_shuffled)[0]
     print("getting training data")
-    X, usa_gross = get_set("training", is_shuffled)
+    X, usa_gross, _ = get_set("training", is_shuffled)
     X_picked = pick_needed_features(linear, X)
     gps = [svm.SVR(kernel='poly', degree=2) for g in [1]]
     print("learning")
@@ -481,7 +525,7 @@ def gaussian_learn(is_shuffled=False):
     m = [mean_squared_error(p, usa_gross) for p in y_pred]
     print("training results:", m)
     print("getting test data")
-    X, usa_gross = get_set("test", is_shuffled)
+    X, usa_gross, _ = get_set("test", is_shuffled)
     X_picked = pick_needed_features(linear, X)
     y_pred = [gp.predict(X_picked) for gp in gps]
     # diff = get_diff(y_pred, usa_gross)
@@ -506,7 +550,7 @@ def gaussian_learn(is_shuffled=False):
 
 def neural_network():
     print("getting training data")
-    X, usa_gross = get_set("training")
+    X, usa_gross, _ = get_set("training")
     # linear = get_linear_fit()[0]
     # X_picked = pick_needed_features(linear, X)
     X_picked = X
@@ -514,16 +558,16 @@ def neural_network():
     net.fit(X_picked, usa_gross)
     predicts = net.predict(X_picked)
     print("training results:",  mean_squared_error(predicts, usa_gross))
-    X, usa_gross = get_set("test")
+    X, usa_gross, _ = get_set("test")
     X_picked = X
     # X_picked = pick_needed_features(linear, X)
     predicts = net.predict(X_picked)
     print("test results:", mean_squared_error(predicts, usa_gross))
 
 
-# linear_learn()
+single_linear_learn()
 
-gaussian_learn()
+# gaussian_learn()
 
 # neural_network()
 
