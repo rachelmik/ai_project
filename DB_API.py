@@ -9,6 +9,7 @@ from sklearn import svm
 from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Lasso
 from sklearn.neural_network import MLPRegressor
+from sklearn.multioutput import MultiOutputRegressor
 from path_to_data import get_data_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
@@ -396,7 +397,7 @@ def get_set(set_type, is_shuffled=False):
             json.dump((X, usa_gross, ratings), f)
 
     X, usa_gross, ratings = remove_nones(X, usa_gross, ratings)
-    return X, usa_gross, ratings
+    return X, usa_gross, [float(r) for r in ratings]
 
 
 def get_diff(predicts, gross):
@@ -470,7 +471,7 @@ def double_layer_params(mode, set_type, is_shuffled=False):
 
 # linear learning
 def get_linear_fit(X, y):
-    linears = [Lasso(alpha=a) for a in [80]]
+    linears = [Lasso(alpha=a, normalize=True) for a in [0.04]]
     print("getting training data")
     linears = [linear.fit(X=X, y=y) for linear in linears]
     predicts = [linear.predict(X) for linear in linears]
@@ -499,29 +500,49 @@ def single_linear_learn(is_shuffled=False):
 
 
 def double_linear_learn():
-    X, y = double_layer_params("rating", "training")
-    linears_raiting = get_linear_fit(X, y)
-    ratings_training = get_linear_predict(linears_raiting, X, y)[0]
-    X, y = double_layer_params("rating", "test")
-    ratings_test = get_linear_predict(linears_raiting, X, y)[0]
+    X, usa_gross, rating = get_set("training")
+    linear = Lasso(alpha=0.04, normalize=True)
+    multi = MultiOutputRegressor(linear)
+    multi.fit(X, list(zip(usa_gross, rating)))
+    predicts = multi.predict(X)
+    print("training: ", mean_squared_error(predicts[:, 0], usa_gross))
+    X, usa_gross, rating = get_set("test")
+    predicts = multi.predict(X)
+    print("test: ", mean_squared_error(predicts[:, 0], usa_gross))
+
+def multi_learn():
+    X, ratings_training = double_layer_params("rating", "training")
+    linears_raiting = get_linear_fit(X, ratings_training)
+    # ratings_training = get_linear_predict(linears_raiting, X, ratings_training)[0]
+    X, ratings_test = double_layer_params("rating", "test")
+    ratings_test = get_linear_predict(linears_raiting, X, ratings_test)[0]
+    # ratings_test = gaussian_learn()
 
     X, y = double_layer_params("single", "training")
     for i in range(len(X)):
         X[i].append(ratings_training[i])
-    linears_gross = get_linear_fit(X, y)
+    # linears_gross = get_linear_fit(X, y)
+    gp = svm.SVR(kernel='poly', degree=2, gamma=0.00001)
+    gp.fit(X, y)
+    predicts = gp.predict(X)
+    print("training: ", mean_squared_error(predicts, y))
 
     X, y = double_layer_params("single", "test")
     for i in range(len(X)):
         X[i].append(ratings_test[i])
-    get_linear_predict(linears_gross, X, y)
+    # get_linear_predict(linears_gross, X, y)
+    predicts = gp.predict(X)
+    print("test: ", mean_squared_error(predicts, y))
 
 
 def gaussian_learn(is_shuffled=False):
-    linear = get_linear_fit(is_shuffled)[0]
+    mode = "rating"
     print("getting training data")
-    X, usa_gross, _ = get_set("training", is_shuffled)
-    X_picked = pick_needed_features(linear, X)
-    gps = [svm.SVR(kernel='poly', degree=2) for g in [1]]
+    X, usa_gross = double_layer_params(mode, "training", is_shuffled)
+    linear = get_linear_fit(X, usa_gross)[0]
+    # X_picked = X
+    X_picked = pick_needed_features(linear, X) if mode == "single" else X
+    gps = [svm.SVR(kernel='poly', degree=2, gamma=g) for g in [1e-5]]
     print("learning")
     gps = [gp.fit(X=X_picked, y=usa_gross) for gp in gps]
     print("predicting on training")
@@ -529,8 +550,9 @@ def gaussian_learn(is_shuffled=False):
     m = [mean_squared_error(p, usa_gross) for p in y_pred]
     print("training results:", m)
     print("getting test data")
-    X, usa_gross, _ = get_set("test", is_shuffled)
-    X_picked = pick_needed_features(linear, X)
+    X, usa_gross = double_layer_params(mode, "test", is_shuffled)
+    # X_picked = X
+    X_picked = pick_needed_features(linear, X) if mode == "single" else X
     y_pred = [gp.predict(X_picked) for gp in gps]
     # diff = get_diff(y_pred, usa_gross)
     # print_diff_partition(diff)
@@ -539,51 +561,59 @@ def gaussian_learn(is_shuffled=False):
     # plt.show()
     m = [mean_squared_error(p, usa_gross) for p in y_pred]
     print("test results:", m)
-    # plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
-    # plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
-    # plt.plot(x, y_pred, 'b-', label=u'Prediction')
-    # plt.fill(np.concatenate([x, x[::-1]]),
-    #          np.concatenate([y_pred - 1.9600 * sigma,
-    #                          (y_pred + 1.9600 * sigma)[::-1]]),
-    #          alpha=.5, fc='b', ec='None', label='95% confidence interval')
-    # plt.xlabel('$x$')
-    # plt.ylabel('$f(x)$')
-    # plt.ylim(-10, 20)
-    # plt.legend(loc='upper left')
+    return y_pred[0]
 
 
-def neural_network():
+def neural_network(num_of_layers):
     print("getting training data")
     X, usa_gross, _ = get_set("training")
-    # linear = get_linear_fit()[0]
+    linear = get_linear_fit(X, usa_gross)[0]
     # X_picked = pick_needed_features(linear, X)
-    X_picked = X
-    net = MLPRegressor(hidden_layer_sizes=(100, 100, 100, 100, 100, 100))
-    net.fit(X_picked, usa_gross)
-    predicts = net.predict(X_picked)
-    print("training results:",  mean_squared_error(predicts, usa_gross))
-    X, usa_gross, _ = get_set("test")
-    X_picked = X
-    # X_picked = pick_needed_features(linear, X)
-    predicts = net.predict(X_picked)
-    print("test results:", mean_squared_error(predicts, usa_gross))
+    training_res = []
+    test_res = []
+    for _ in range(5):
+        X, usa_gross, rating = get_set("training")
+        X_picked = pick_needed_features(linear, X)
+        net = MLPRegressor(hidden_layer_sizes=(100, )*num_of_layers)
+        multi = MultiOutputRegressor(net)
+        multi.fit(X_picked, list(zip(usa_gross, rating)))
+        predicts = multi.predict(X_picked)
+        training_res.append(mean_squared_error(predicts[:, 0], usa_gross))
+        # print("training results:",  mean_squared_error(predicts, usa_gross))
+        X, usa_gross, rating = get_set("test")
+        X_picked = pick_needed_features(linear, X)
+        # X_picked = pick_needed_features(linear, X)
+        predicts = multi.predict(X_picked)
+        # print("test results:", mean_squared_error(predicts, usa_gross))
+        test_res.append(mean_squared_error(predicts[:, 0], usa_gross))
+    # print("training result: ", np.mean(training_res), np.std(training_res))
+    # print("test result: ", np.mean(test_res), np.std(test_res))
+    return np.mean(training_res), np.std(training_res), np.mean(test_res), np.std(test_res)
 
 
+def net_layers():
+    training = []
+    test = []
+    training_std = []
+    test_std = []
+    x = [i for i in range(1, 7)]
+    for i in x:
+        print(i)
+        r1, r2, r3, r4 = neural_network(i)
+        training.append(r1)
+        training_std.append(r2)
+        test.append(r3)
+        test_std.append(r4)
+    print(training)
+    print(training_std)
+    print(test)
+    print(test_std)
+
+
+# single_linear_learn()
 double_linear_learn()
 
 # gaussian_learn()
 
-# neural_network()
-
 # create_all_histograms()
-# x = [10**(-i) for i in range(10)]
-# training = [4706.0844146979225, 4705.538544429718, 4701.5240069889505, 4649.462839836307, 4463.845319768954, 3753.198360360228, 3396.6738359355327, 4349.101691108962, 4728.000610503838, 4767.971936639001]
-# test = [5767.125207842541, 5766.5398678762285, 5761.986805557549, 5707.238276485438, 5518.578684352951, 4753.367065523703, 4223.027292326871, 5273.255382710276, 5718.06296263596, 5766.08767727686]
-# plt.semilogx(x, training, label="training set")
-# plt.semilogx(x, test, label="test set")
-# plt.grid()
-# plt.xlabel("Gamma")
-# plt.ylabel("MSE (in millions USD)")
-# plt.title("SVM with Gaussian kernel - results vs gamma")
-# plt.legend()
-# plt.show()
+
