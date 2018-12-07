@@ -25,26 +25,15 @@ def get_linear_fit(X, y, alpha_array):
 
 
 def get_linear_predict(linears, X, y):
-    print("len:", len(y))
     predicts = [linear.predict(X) for linear in linears]
     m = [mean_squared_error(p, y) for p in predicts]
-    # print("test linear", mean_squared_error(y, [40]*len(y)))
     print("test linear", m)
-    # print(mean_squared_error(y, [32]*len(y)))
-    # y, p = zip(*[(i, j) for i, j in zip(y, predicts[0]) if i != 0])
-    # plt.scatter(y, p, )
-    # plt.plot([0, 600], [0, 600], color="black")
-    # plt.xlabel("Real gross")
-    # plt.ylabel("Predicted gross")
-    # plt.title("Real vs Predicted gross")
-    # plt.grid()
-    # plt.show()
     return predicts
 
 
-def single_linear_learn(alpah_array, is_shuffled=False):
+def single_linear_learn(alpha_array, is_shuffled=False):
     X, y = double_layer_params("single", "training", is_shuffled)
-    linears = get_linear_fit(X, y, alpah_array)
+    linears = get_linear_fit(X, y, alpha_array)
     X, y = double_layer_params("single", "test", is_shuffled)
     get_linear_predict(linears, X, y)
 
@@ -160,18 +149,21 @@ def tree_classifier():
     y_small = [usa_gross[i] for i in range(len(y)) if y[i] == 0]
     X_big = [X[i] for i in range(len(y)) if y[i] == 1]
     y_big = [usa_gross[i] for i in range(len(y)) if y[i] == 1]
+    print("Big fit:")
     linear_big = get_linear_fit(X_big, y_big, [default_alpha_linear])
+    print("Small fit:")
     linear_small = get_linear_fit(X_small, y_small, [default_alpha_linear])
     X, usa_gross, _ = get_set("test")
     y = np.array([get_binary_gross(i) for i in usa_gross])
     p = clf.predict(X)
-    print("binary res:", sum(abs(y-p)) / len(y))
 
     X_small = [X[i] for i in range(len(p)) if p[i] == 0]
     y_small = [usa_gross[i] for i in range(len(p)) if p[i] == 0]
     X_big = [X[i] for i in range(len(p)) if p[i] == 1]
     y_big = [usa_gross[i] for i in range(len(p)) if p[i] == 1]
+    print("Big predict:")
     get_linear_predict(linear_big, X_big, y_big)
+    print("Small predict:")
     get_linear_predict(linear_small, X_small, y_small)
 
 
@@ -192,11 +184,4 @@ def net_layers(layers_array, is_multi=False):
     print(test)
     print(test_std)
 
-
-multi_learn("poly", "poly")
-# single_linear_learn([default_alpha_linear])
-# net_layers([1,2,3])
-
-# KNN_learn()
-
-# tree_classifier()
+tree_classifier()

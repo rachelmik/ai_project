@@ -11,7 +11,7 @@ all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Hor
                    ' Comedy', ' Family', ' Animation', ' Musical', ' Sport', ' News', ' Romance', ' Fantasy', ' Action',
                    ' Sci-Fi', ' Western', ' Adventure', ' War']
 
-path_to_data = get_data_path()
+path_to_data = ""
 base_path = get_base_path()
 
 
