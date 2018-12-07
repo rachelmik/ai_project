@@ -1,7 +1,6 @@
 import json
-import requests
 import glob
-from scraping_movie_page import MovieMetadata
+from scraping.scraping_movie_page import MovieMetadata
 
 
 years = ["2012"]

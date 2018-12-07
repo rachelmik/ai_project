@@ -1,5 +1,5 @@
 from datetime import datetime
-from scraping_movie_page import Metadata, MovieOfPersonMetadata
+from scraping.scraping_movie_page import Metadata, MovieOfPersonMetadata
 
 
 class PersonMetadata(Metadata):

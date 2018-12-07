@@ -1,7 +1,5 @@
 import json
-import requests
-from scraping_movie_page import MovieMetadata
-from bs4 import BeautifulSoup
+from scraping.scraping_movie_page import MovieMetadata
 import logging
 
 

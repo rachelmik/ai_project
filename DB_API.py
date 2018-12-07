@@ -5,13 +5,14 @@ from random import shuffle
 
 import numpy as np
 from matplotlib import pyplot as plt
-from path_to_data import get_data_path
+from path_to_data import get_data_path, get_base_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
                    ' Comedy', ' Family', ' Animation', ' Musical', ' Sport', ' News', ' Romance', ' Fantasy', ' Action',
                    ' Sci-Fi', ' Western', ' Adventure', ' War']
 
 path_to_data = get_data_path()
+base_path = get_base_path()
 
 
 def read_json_file(year, json_file):
@@ -170,16 +171,47 @@ def get_list_of_feature(db, feature):
     return [movie.get(feature) for movie in db]
 
 
-def remove_nones(list1, list2, list3=None):
-    if list3:
+def calc_goodness(features):
+    zeros = sum([1 for i in features[-114:] if i == 0])
+    nones = sum([1 for i in features[:5] if i == 0])
+    return (zeros + nones) / (114 + 5)
+
+
+def peak_random(features, gross, rating, num):
+    places = np.random.permutation(range(len(features)))[:num]
+    return [features[i] for i in places], [gross[i] for i in places], [rating[i] for i in places]
+
+
+def remove_nones(features, gross, rating=None):
+    # rating = rating + [6]
+    # new_features = []
+    # new_gross = []
+    # new_rating = []
+    # for i in range(len(features)):
+    #     # if None in features[i]:
+    #     #     continue
+    #     # movie_features = features[i]
+    #     movie_features = [0 if j is None else j for j in features[i]]
+    #     if calc_goodness(movie_features) <= 1 and gross[i] != 0:
+    #         new_features.append(movie_features)
+    #         new_gross.append(gross[i])
+    #         if rating:
+    #             new_rating.append(rating[i])
+    # if rating:
+    #     # num = 1200
+    #     # return peak_random(new_features, new_gross, new_rating, num)
+    #     return new_features, new_gross, new_rating
+    # return new_features, new_gross
+    #
+    if rating:
         try:
-            return zip(*[(i, j, k) for i, j, k in zip(list1, list2, list3) if None not in i and j != 0])
+            return zip(*[(i, j, k) for i, j, k in zip(features, gross, rating) if None not in i and j != 0])
         except TypeError:
-            return zip(*[(i, j, k) for i, j, k in zip(list1, list2, list3) if i is not None and j != 0])
+            return zip(*[(i, j, k) for i, j, k in zip(features, gross, rating) if i is not None and j != 0])
     try:
-        return zip(*[(i, j) for i, j in zip(list1, list2) if None not in i and j != 0])
+        return zip(*[(i, j) for i, j in zip(features, gross) if None not in i and j != 0])
     except TypeError:
-        return zip(*[(i, j) for i, j in zip(list1, list2) if i is not None and j != 0])
+        return zip(*[(i, j) for i, j in zip(features, gross) if i is not None and j != 0])
 
 
 def get_date_ts(date):
@@ -267,20 +299,6 @@ def append_none(data, func):
 
     return result
 
-
-# def get_person_params(person_list):
-#     features = ["average_gross", "max_gross", "std_gross", "avg_gradient", "average_complex_gross"]
-#     params = []
-#     for feature in features:
-#         # person_features = []
-#         # for person in person_list:
-#         #     if person is None:
-#         #         person_features.append(None)
-#         #     else:
-#         #         person_features.append(person.get(feature))
-#         person_features = append_none(person_list, lambda person: person.get(feature))
-#         params.append(person_features)
-#     return params
 
 def pad(list_to_pad, pad_with, length):
     return list_to_pad + [pad_with] * (length - len(list_to_pad))
@@ -392,7 +410,7 @@ def get_set(set_type, is_shuffled=False):
             json.dump((X, usa_gross, ratings), f)
 
     X, usa_gross, ratings = remove_nones(X, usa_gross, ratings)
-    return X, usa_gross, [float(r) for r in ratings]
+    return X*2, usa_gross*2, [float(r) for r in ratings]*2
 
 
 def get_diff(predicts, gross):
@@ -428,14 +446,14 @@ def create_all_histograms():
     # year = get_list_of_feature(db, "year")
     # runtime = get_list_of_details_feature(db, "Runtime")
     # usa_gross = get_gross(db)
-    with open(f'{path_to_data}histogram_data.json') as f:
+    with open(f'{base_path}histogram_data.json') as f:
         data = json.load(f)
 
     usa_gross = data["gross"]
 
-    create_bars(usa_gross, data["year"])
+    # create_bars(usa_gross, data["year"])
     # create_range_hist(usa_gross, data["dates"])
-    # create_range_hist(usa_gross, data["cast"])
+    create_range_hist(usa_gross, data["cast"])
     # create_range_hist(usa_gross, data["runtime"])
     # genres = get_genre_dict(db)
     # create_hist(data["genres"], False)
@@ -462,4 +480,3 @@ def double_layer_params(mode, set_type, is_shuffled=False):
         raise RuntimeError
 
     return X, y
-

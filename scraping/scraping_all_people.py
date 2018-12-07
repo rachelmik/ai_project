@@ -2,9 +2,8 @@ import json
 from multiprocessing import Process
 import glob
 import logging
-import numpy as np
-from scraping_person_page import PersonMetadata
-from scraping_movie_page import MovieMetadata
+from scraping.scraping_person_page import PersonMetadata
+from scraping.scraping_movie_page import MovieMetadata
 
 logger = logging.getLogger(__name__)
 logger.setLevel("INFO")
