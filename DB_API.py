@@ -11,7 +11,7 @@ all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Hor
                    ' Comedy', ' Family', ' Animation', ' Musical', ' Sport', ' News', ' Romance', ' Fantasy', ' Action',
                    ' Sci-Fi', ' Western', ' Adventure', ' War']
 
-path_to_data = ""
+path_to_data = get_data_path()
 base_path = get_base_path()
 
 
@@ -400,9 +400,11 @@ def get_set(set_type, is_shuffled=False):
             X, usa_gross, ratings = json.load(f)
     else:
         if set_type == "training":
-            db = get_data(2007, 2015, is_shuffled)
+            db = get_data(2007, 2014, is_shuffled)
         elif set_type == "test":
-            db = get_data(2015, 2017, is_shuffled)
+            db = get_data(2014, 2016, is_shuffled)
+        elif set_type == "test_fin":
+            db = get_data(2016, 2017, is_shuffled)
         else:
             raise ValueError("{} not a valid set type".format(set_type))
         usa_gross, X, ratings = get_all_params(db)
@@ -410,7 +412,7 @@ def get_set(set_type, is_shuffled=False):
             json.dump((X, usa_gross, ratings), f)
 
     X, usa_gross, ratings = remove_nones(X, usa_gross, ratings)
-    return X*2, usa_gross*2, [float(r) for r in ratings]*2
+    return X, usa_gross, [float(r) for r in ratings]
 
 
 def get_diff(predicts, gross):

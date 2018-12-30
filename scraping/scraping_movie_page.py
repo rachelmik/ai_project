@@ -21,11 +21,10 @@ class PersonInMovieMetadata(Metadata):
     def __init__(self, tr):
         a = tr.find("a")
         self.url = "https://www.imdb.com" + a['href']
-        if a.text:
-            self.name = a.text
-        else:
-            self.name = tr.find("span", {"class": "itemprop"}).text
-
+        # if a.text:
+        #     self.name = a.text
+        # else:
+        #     self.name = tr.find("span", {"class": "itemprop"}).text
 
 class MovieMetadata(Metadata):
     def __init__(self, url, is_full=True):
@@ -52,7 +51,14 @@ class MovieMetadata(Metadata):
                 self.story_url = desc.find("span", {"class": "see-more inline"}).find("a")["href"]
             except Exception:
                 pass
-            self.genres = [a.text for a in desc.find("div", {"itemprop": "genre"}).find_all("a")]
+            desc = desc.find_all("div", {"class": "see-more inline canwrap"})
+            genres = None
+            for i in desc:
+                h4 = i.find("h4")
+                if h4 is not None and h4.text == "Genres:":
+                    genres = i
+                    break
+            self.genres = [a.text for a in genres.find_all("a")]
             try:
                 self.keywords = self.get_keywords(desc)
             except AttributeError:

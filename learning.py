@@ -8,7 +8,7 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn import tree
 
-from DB_API import double_layer_params, pick_needed_features, get_set
+from DB_API import double_layer_params, pick_needed_features, get_set, get_data, get_all_params
 
 default_alpha_linear = 0.04
 default_gamma_poly = 1e-5
@@ -62,7 +62,7 @@ def get_svm_fit(X, y, gamma_array, kernel='rbf'):
 def get_svm_predict(gps, X, y):
     y_pred = [gp.predict(X) for gp in gps]
     m = [mean_squared_error(p, y) for p in y_pred]
-    print("training results:", m)
+    print("test results:", m)
     return y_pred
 
 
@@ -184,4 +184,26 @@ def net_layers(layers_array, is_multi=False):
     print(test)
     print(test_std)
 
-tree_classifier()
+
+def new_prediction(X):
+    X_training, ratings_training = double_layer_params("rating", "training")
+    poly_ratings = get_svm_fit(X_training, ratings_training, [default_gamma_poly], kernel='poly')
+    ratings_test = get_svm_predict(poly_ratings, X, [0]*len(X))[0]
+
+    X_training, y_training = double_layer_params("single", "training")
+    for i in range(len(X_training)):
+        X_training[i].append(ratings_training[i])
+
+    for i in range(len(X)):
+        X[i].append(ratings_test[i])
+
+    linears_gross = get_linear_fit(X_training, y_training, [default_alpha_linear])
+    return get_linear_predict(linears_gross, X, [0]*len(X))
+
+
+# single_linear_learn([default_alpha_linear])
+
+X, usa_gross, _ = get_set("test_fin")
+predict = new_prediction(X)
+print(mean_squared_error(usa_gross, predict[0]))
+
