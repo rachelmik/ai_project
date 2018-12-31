@@ -1,23 +1,25 @@
 import json
 from scraping.scraping_movie_page import MovieMetadata
+from path_to_data import get_data_path
 import logging
 
 
 def make_year_pages_list(year=None):
-    file_name = "DB/{}/movies_list.json".format(year)
+    file_name = get_data_path() + "{}/movies_list.json".format(year)
     try:
         with open(file_name, "r") as f:
             return json.load(f)
     except IOError:
         pass
     pages_links = []
-    url_preffix = "https://www.imdb.com/search/title?year={}&title_type=feature&sort=boxoffice_gross_us,desc&page="\
-        .format(year)
-    url_suffix = "&ref_=adv_nxt"
-    for page in range(1, 201):
+    # url_preffix = "https://www.imdb.com/search/title?year={}&title_type=feature&sort=boxoffice_gross_us,desc&page="\
+    #     .format(year)
+    # url_suffix = "&ref_=adv_nxt"
+    url_preffix = "https://www.imdb.com/search/title?title_type=feature&year={}&sort=boxoffice_gross_us,desc&start={}&ref_=adv_nxt"
+    for page in range(51, 1001, 50):
         if page % 10 == 0:
             print(page)
-        url = url_preffix + str(page) + url_suffix
+        url = url_preffix.format(year, page)
         soup = MovieMetadata.get_soup(url)
         page_links = soup.find_all("h3")
         for links in page_links:
@@ -38,7 +40,7 @@ def build_movies_db():
     log = logging.getLogger(__name__)
     db = []
     base_url = "https://www.imdb.com"
-    for year in range(2009, 2010):
+    for year in range(2017, 2018):
         count = 1
         movies_of_2015 = make_year_pages_list(year)
         for link in movies_of_2015:
@@ -61,7 +63,7 @@ def build_movies_db():
                 log.error("Error {} in {}".format(e, url))
                 continue
             # db.append(movie.to_json())
-            file_name = "DB/{}/{:0>5d}_{}.json".format(year, count, movie.name).replace(":", "").replace("?", "")
+            file_name = get_data_path() + "{}/{:0>5d}_{}.json".format(year, count, movie.name).replace(":", "").replace("?", "")
             try:
                 with open(file_name, 'w+') as file:
                     json.dump(movie.to_json(), file)

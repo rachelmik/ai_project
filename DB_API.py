@@ -183,7 +183,6 @@ def peak_random(features, gross, rating, num):
 
 
 def remove_nones(features, gross, rating=None):
-    # rating = rating + [6]
     # new_features = []
     # new_gross = []
     # new_rating = []
@@ -192,17 +191,18 @@ def remove_nones(features, gross, rating=None):
     #     #     continue
     #     # movie_features = features[i]
     #     movie_features = [0 if j is None else j for j in features[i]]
-    #     if calc_goodness(movie_features) <= 1 and gross[i] != 0:
-    #         new_features.append(movie_features)
-    #         new_gross.append(gross[i])
-    #         if rating:
-    #             new_rating.append(rating[i])
+    #     new_features.append(movie_features)
+    #     # if calc_goodness(movie_features) <= 1 and gross[i] != 0:
+    #     #     new_features.append(movie_features)
+    #     #     new_gross.append(gross[i])
+    #     #     if rating:
+    #     #         new_rating.append(rating[i])
     # if rating:
     #     # num = 1200
     #     # return peak_random(new_features, new_gross, new_rating, num)
-    #     return new_features, new_gross, new_rating
-    # return new_features, new_gross
-    #
+    #     return new_features, gross, rating
+    # return new_features, gross
+    # #
     if rating:
         try:
             return zip(*[(i, j, k) for i, j, k in zip(features, gross, rating) if None not in i and j != 0])
@@ -400,9 +400,9 @@ def get_set(set_type, is_shuffled=False):
             X, usa_gross, ratings = json.load(f)
     else:
         if set_type == "training":
-            db = get_data(2007, 2014, is_shuffled)
+            db = get_data(2007, 2015, is_shuffled)
         elif set_type == "test":
-            db = get_data(2014, 2016, is_shuffled)
+            db = get_data(2015, 2017, is_shuffled)
         elif set_type == "test_fin":
             db = get_data(2016, 2017, is_shuffled)
         else:

@@ -182,7 +182,7 @@ def scrap_ratings(file_list):
 if __name__ == '__main__':
     data_path = get_base_path()
     file_list = []
-    for year in range(2012, 2013):
+    for year in range(2017, 2018):
         base_path = data_path + str(year)
         with_rating_path = f'{get_data_path()}{year}'
         file_list += [f'{base_path}/{i}' for i in os.listdir(base_path) if i not in os.listdir(with_rating_path)]
@@ -191,4 +191,7 @@ if __name__ == '__main__':
     for i in range(0, len(file_list), jump):
         p = Process(target=scrap_ratings, args=(file_list[i:i + jump],))
         p.start()
+
+    # movie = MovieMetadata("https://www.imdb.com/title/tt0451279/?ref_=nv_sr_1")
+    # print(movie.to_json())
 
