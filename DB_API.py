@@ -5,14 +5,13 @@ from random import shuffle
 
 import numpy as np
 from matplotlib import pyplot as plt
-from path_to_data import get_data_path, get_base_path
 
 all_genres_list = [' Thriller', ' Mystery', ' Biography', ' Music', 'War', ' Horror', ' Drama', ' Crime', ' History',
                    ' Comedy', ' Family', ' Animation', ' Musical', ' Sport', ' News', ' Romance', ' Fantasy', ' Action',
                    ' Sci-Fi', ' Western', ' Adventure', ' War']
 
 path_to_data = ""
-base_path = get_base_path()
+base_path = ""
 
 
 def read_json_file(year, json_file):
@@ -381,9 +380,9 @@ def get_set(set_type, is_shuffled=False):
     else:
         if set_type == "training":
             db = get_data(2007, 2015, is_shuffled)
-        elif set_type == "test":
+        elif set_type == "validation":
             db = get_data(2015, 2017, is_shuffled)
-        elif set_type == "test_fin":
+        elif set_type == "test":
             db = get_data(2017, 2018, is_shuffled)
         else:
             raise ValueError("{} not a valid set type".format(set_type))

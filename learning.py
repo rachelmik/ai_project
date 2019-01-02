@@ -33,7 +33,7 @@ def get_linear_predict(linears, X, y):
 def single_linear_learn(alpha_array, is_shuffled=False):
     X, y = double_layer_params("single", "training", is_shuffled)
     linears = get_linear_fit(X, y, alpha_array)
-    X, y = double_layer_params("single", "test", is_shuffled)
+    X, y = double_layer_params("single", "validation", is_shuffled)
     get_linear_predict(linears, X, y)
 
 
@@ -44,7 +44,7 @@ def double_linear_learn():
     multi.fit(X, list(zip(usa_gross, rating)))
     predicts = multi.predict(X)
     print("training: ", mean_squared_error(predicts[:, 0], usa_gross))
-    X, usa_gross, rating = get_set("test")
+    X, usa_gross, rating = get_set("validation")
     predicts = multi.predict(X)
     print("test: ", mean_squared_error(predicts[:, 0], usa_gross))
 
@@ -70,14 +70,14 @@ def svm_learn(gamma_array, kernel="rdf"):
     linear = get_linear_fit(X, usa_gross, [default_alpha_linear])[0]
     X_picked = pick_needed_features(linear, X)
     gps = get_svm_fit(X_picked, usa_gross, gamma_array, kernel)
-    X, usa_gross = double_layer_params("single", "test")
+    X, usa_gross = double_layer_params("single", "validation")
     X_picked = pick_needed_features(linear, X)
     get_svm_predict(gps, X_picked, usa_gross)
 
 
 def multi_learn(first_layer="linear", second_layer="linear"):
     X_training, ratings_training = double_layer_params("rating", "training")
-    X_test, ratings_test = double_layer_params("rating", "test")
+    X_test, ratings_test = double_layer_params("rating", "validation")
     if first_layer == "linear":
         linear_ratings = get_linear_fit(X_training, ratings_training, [default_alpha_linear])
         ratings_test = get_linear_predict(linear_ratings, X_test, ratings_test)[0]
@@ -89,7 +89,7 @@ def multi_learn(first_layer="linear", second_layer="linear"):
     for i in range(len(X_training)):
         X_training[i].append(ratings_training[i])
 
-    X_test, y_test = double_layer_params("single", "test")
+    X_test, y_test = double_layer_params("single", "validation")
     for i in range(len(X_test)):
         X_test[i].append(ratings_test[i])
 
@@ -119,7 +119,7 @@ def neural_network(num_of_layers, is_multi=False):
             net.fit(X_picked, list(zip(usa_gross)))
         predicts = net.predict(X_picked)
         training_res.append(mean_squared_error(predicts[:, 0], usa_gross))
-        X, usa_gross, rating = get_set("test")
+        X, usa_gross, rating = get_set("validation")
         X_picked = pick_needed_features(linear, X)
         # X_picked = X
         predicts = net.predict(X_picked)
@@ -132,7 +132,7 @@ def KNN_learn():
     knn = KNeighborsRegressor(n_neighbors=5, weights='distance')
     print("learning")
     knn.fit(X, usa_gross)
-    X, usa_gross, _ = get_set("test")
+    X, usa_gross, _ = get_set("validation")
     predicts = knn.predict(X)
     print(mean_squared_error(predicts, usa_gross))
 
@@ -154,7 +154,7 @@ def tree_classifier():
     linear_big = get_linear_fit(X_big, y_big, [default_alpha_linear])
     print("Small fit:")
     linear_small = get_linear_fit(X_small, y_small, [default_alpha_linear])
-    X, usa_gross, _ = get_set("test")
+    X, usa_gross, _ = get_set("validation")
     y = np.array([get_binary_gross(i) for i in usa_gross])
     p = clf.predict(X)
 
@@ -188,7 +188,7 @@ def net_layers(layers_array, is_multi=False):
 
 def new_prediction(X):
     X_training, ratings_training = double_layer_params("rating", "training")
-    X_val, ratings_val = double_layer_params("rating", "test")
+    X_val, ratings_val = double_layer_params("rating", "validation")
     X_training += X_val
     ratings_training += ratings_val
     # poly_ratings = get_svm_fit(X_training, ratings_training, [default_gamma_poly], kernel='poly')
@@ -205,5 +205,4 @@ def new_prediction(X):
 
     linears_gross = get_linear_fit(X_training, y_training, [default_alpha_linear])
     return get_linear_predict(linears_gross, X, [0]*len(X))
-
 
