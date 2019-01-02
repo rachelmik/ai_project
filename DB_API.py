@@ -91,7 +91,7 @@ def get_person_gross(person, max_year):
         if movie_gross is not None and isinstance(gross_usa, int):
             movie_gross = movie_gross / 1e6
             gross.append(movie_gross)
-            complex_gross.append(movie_gross / m.get("place"))
+            # complex_gross.append(movie_gross / m.get("place"))
 
     return gross, complex_gross, places, years
 
@@ -183,6 +183,7 @@ def peak_random(features, gross, rating, num):
 
 
 def remove_nones(features, gross, rating=None):
+    # rating = rating + [6]
     # new_features = []
     # new_gross = []
     # new_rating = []
@@ -335,8 +336,8 @@ def get_movie_params(movie):
     date = parse_date(movie.get('details').get("Release Date"))
     num_of_actors = len(movie.get("cast"))
     runtime = movie.get('details').get("Runtime")
-    woman_ratio = movie.get("actress_ratio")
-    avg_cast_age = movie.get("average_age")
+    woman_ratio = movie.get("actress_ratio", 0)
+    avg_cast_age = movie.get("average_age", 0)
     params = [date, num_of_actors, runtime, woman_ratio, avg_cast_age]
     params += movie.get("genres_array")
     producer = movie.get("producer_enriched")
@@ -404,7 +405,7 @@ def get_set(set_type, is_shuffled=False):
         elif set_type == "test":
             db = get_data(2015, 2017, is_shuffled)
         elif set_type == "test_fin":
-            db = get_data(2016, 2017, is_shuffled)
+            db = get_data(2017, 2018, is_shuffled)
         else:
             raise ValueError("{} not a valid set type".format(set_type))
         usa_gross, X, ratings = get_all_params(db)

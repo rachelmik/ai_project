@@ -10,8 +10,8 @@ class PersonMetadata(Metadata):
         header = self.soup.find("h1", {"class": "header"})
         self.name = header.find("span", {"class": "itemprop"}).text
         self.type = person_type
-        if person_type == "actor":
-            self.check_gender()
+        # if person_type == "actor":
+        #     self.check_gender()
         self.movies = []
         self.get_movies(max_year, min_year)
         try:
@@ -29,6 +29,8 @@ class PersonMetadata(Metadata):
         except Exception:
             return
         for div in filmography.find_all("div", {"class": "filmo-row"}):
+            if len(self.movies) >= 3:
+                break
             if "Series" in div.text or "Video" in div.text:
                 continue
             film = div.find("a")["href"]
@@ -37,9 +39,10 @@ class PersonMetadata(Metadata):
                 continue
             try:
                 person_type = "actor" if self.type == "actress" else self.type
-                movie = MovieOfPersonMetadata("https://www.imdb.com/" + film, self.name, person_type)
+                movie = MovieOfPersonMetadata("https://www.imdb.com/" + film, "", person_type)
                 self.movies.append(movie)
-            except Exception:
+            except Exception as e:
+                print(e)
                 continue
 
     def check_gender(self):
