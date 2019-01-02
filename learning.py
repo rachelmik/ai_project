@@ -1,5 +1,4 @@
 import numpy as np
-from matplotlib import pyplot as plt
 from sklearn import svm
 from sklearn.metrics import mean_squared_error
 from sklearn.linear_model import Lasso
@@ -8,7 +7,7 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn import tree
 
-from DB_API import double_layer_params, pick_needed_features, get_set, get_data, get_all_params
+from DB_API import double_layer_params, pick_needed_features, get_set
 
 default_alpha_linear = 0.04
 default_gamma_poly = 1e-5
