@@ -183,27 +183,6 @@ def peak_random(features, gross, rating, num):
 
 
 def remove_nones(features, gross, rating=None):
-    # rating = rating + [6]
-    # new_features = []
-    # new_gross = []
-    # new_rating = []
-    # for i in range(len(features)):
-    #     # if None in features[i]:
-    #     #     continue
-    #     # movie_features = features[i]
-    #     movie_features = [0 if j is None else j for j in features[i]]
-    #     new_features.append(movie_features)
-    #     # if calc_goodness(movie_features) <= 1 and gross[i] != 0:
-    #     #     new_features.append(movie_features)
-    #     #     new_gross.append(gross[i])
-    #     #     if rating:
-    #     #         new_rating.append(rating[i])
-    # if rating:
-    #     # num = 1200
-    #     # return peak_random(new_features, new_gross, new_rating, num)
-    #     return new_features, gross, rating
-    # return new_features, gross
-    # #
     if rating:
         try:
             return zip(*[(i, j, k) for i, j, k in zip(features, gross, rating) if None not in i and j != 0])
