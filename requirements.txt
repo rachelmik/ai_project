@@ -6,7 +6,7 @@ idna==2.7
 ijson==2.3
 kiwisolver==1.0.1
 matplotlib==2.2.3
-numpy==1.15.1
+numpy==1.22.0
 pyparsing==2.2.0
 python-dateutil==2.7.3
 pytz==2018.5
